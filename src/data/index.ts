@@ -8,7 +8,13 @@
 
 export interface ISampleRingBuffer {
   readonly capacity: number;
-  write(samples: Float32Array): number;
+  readonly size: number;
+  readonly totalWritten: number;
+  write(samples: Float32Array, count?: number): number;
   read(destination: Float32Array, count: number): number;
+  readLatest(destination: Float32Array, count: number): number;
+  readWindow(destination: Float32Array, globalStartIndex: number, count: number): number;
   clear(): void;
 }
+
+export { SampleRingBuffer } from './SampleRingBuffer';

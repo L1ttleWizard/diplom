@@ -118,3 +118,82 @@ export class SignalGenerator {
   ): Float32Array;
 }
 ```
+
+---
+
+## 5. Acquisition & ADC Model API (`src/domain/acquisition/`, `src/data/`)
+
+### 5.1 `AnalogFrontEnd`
+```typescript
+export interface AFEConfig {
+  coupling?: Coupling;              // 'DC' | 'AC' | 'GND'
+  probeAttenuation?: ProbeAttenuation; // '1X' | '10X'
+  voltsPerDiv?: number;             // Volts per division scale
+  offset?: number;                  // Channel offset in Volts
+  bandwidthLimit?: boolean;         // Enable 1st-order RC low-pass filter
+  cutoffFrequency?: number;         // Cutoff frequency in Hz (default 20 MHz)
+  noiseRms?: number;                // Input thermal noise RMS standard deviation
+  minRailVoltage?: number;          // Negative amplifier rail (default -5.0V)
+  maxRailVoltage?: number;          // Positive amplifier rail (default +5.0V)
+}
+
+export class AnalogFrontEnd {
+  constructor(config?: AFEConfig);
+  public processSample(vIn: number, dt: number): number;
+  public processBatch(vIn: Float32Array, vOut: Float32Array, dt: number, count?: number): void;
+  public resetFilters(): void;
+}
+```
+
+### 5.2 `ADCModel`
+```typescript
+export interface ADCConfig {
+  resolution?: 8 | 10 | 12 | 14 | 16; // ADC bit resolution (default 8)
+  fullScaleVoltage?: number;           // Full scale voltage VFS (default 4.0V)
+  sampleRate?: number;                 // 1 MSPS, 2 MSPS, 5 MSPS
+}
+
+export class ADCModel {
+  constructor(config?: ADCConfig);
+  public get lsbVoltage(): number; // 2 * VFS / 2^N
+  public convertSample(vAnalog: number): {
+    code: number;
+    reconstructedVoltage: number;
+    clippedLow: boolean;
+    clippedHigh: boolean;
+  };
+  public convertBatch(
+    analogIn: Float32Array,
+    digitalCodes?: Uint16Array | Uint32Array,
+    reconstructedOut?: Float32Array,
+    count?: number
+  ): ADCConversionResult;
+}
+```
+
+### 5.3 `AcquisitionEngine`
+```typescript
+export class AcquisitionEngine {
+  public readonly ch1: AcquisitionChannel;
+  public readonly ch2: AcquisitionChannel;
+  public readonly clock: SimulationClock;
+
+  constructor(config?: AcquisitionEngineConfig);
+  public setSampleRate(rate: number): void;
+  public acquire(count: number): DualChannelAcquisitionResult;
+  public reset(): void;
+}
+```
+
+### 5.4 `SampleRingBuffer` (`src/data/SampleRingBuffer.ts`)
+```typescript
+export class SampleRingBuffer implements ISampleRingBuffer {
+  constructor(capacity?: number); // Power-of-two capacity
+  public write(samples: Float32Array, count?: number): number;
+  public read(destination: Float32Array, count: number): number;
+  public readLatest(destination: Float32Array, count: number): number;
+  public readWindow(destination: Float32Array, globalStartIndex: number, count: number): number;
+  public clear(): void;
+}
+```
+

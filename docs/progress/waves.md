@@ -226,6 +226,44 @@
 
 ---
 
+# Wave 7: Acquisition / ADC Model
+
+- **Status**: DONE
+- **Goal**: Реализовать физическую модель входного тракта осциллографа и АЦП с разделением `Signal Source → Analog Front End → ADC → Ring Buffer`, поддержкой логических частот 1, 2, 5 MSPS, независимыми CH1/CH2 и строгой математической верификацией.
+- **Implemented**:
+  1. **Аналоговый входной тракт (`AnalogFrontEnd`)**:
+     - Переключатель связи (Coupling): `GND` ($0.0\text{ В}$), `DC` (гальваническая связь), `AC` (ФВЧ 1-го порядка, $f_c = 10\text{ Гц}$, $\beta = \frac{1}{1 + 2\pi f_c \Delta t}$, блокирующий постоянную составляющую).
+     - Аттенюатор проба (Probe Attenuation): $1\text{X}$ ($1.0$), $10\text{X}$ ($0.1$).
+     - Масштабирование усиления и смещения: $A_v = \frac{1}{\text{voltsPerDiv}}$, $V_{\text{scaled}} = (V_{\text{probe}} - V_{\text{offset}}) \cdot A_v$.
+     - Аналоговое ограничение полосы пропускания (Bandwidth Limiter): однополюсный RC ФНЧ 1-го порядка ($\alpha = \frac{2\pi f_c \Delta t}{1 + 2\pi f_c \Delta t}$), ослабление ровно $-3.01\text{ дБ}$ на частоте среза $f_c$.
+     - Тепловой шум входного каскада: аддитивный белый гауссовский шум ($\mathcal{N}(0, \sigma^2)$) на основе преобразования Бокса-Мюллера и PRNG Mulberry32.
+     - Насыщение аналоговых рельсов питания (Clipping): жесткое ограничение в диапазоне $[V_{\text{min\_rail}}, V_{\text{max\_rail}}]$.
+  2. **Физическая модель АЦП (`ADCModel`)**:
+     - Разрешение: конфигурируемое $N \in [8, 16]$ бит (256..65536 уровней квантования).
+     - Расчет шага МЗР: $q = \frac{2 V_{\text{FS}}}{2^N}$ ($31.25\text{ мВ}$ для 8 бит при $\pm 4\text{ В}$).
+     - Равномерное квантование со средней ступенью (mid-tread) и реконструкцией в середину интервала $V_q = -V_{\text{FS}} + (k + 0.5) \cdot q$.
+     - Ограничение погрешности квантования: $|e_q| \le q/2$.
+     - Флаги переполнения: `clippedLow` и `clippedHigh`.
+     - Поддержка логических частот дискретизации: **1 MSPS, 2 MSPS, 5 MSPS**.
+  3. **Независимые каналы сбора (`AcquisitionChannel`, `AcquisitionEngine`)**:
+     - Полная изоляция `CH1` и `CH2` (раздельные AFE, АЦП, настройки масштаба, смещения и проба, нулевые перекрестные помехи).
+     - Синхронный опрос каналов от общих детерминированных часов `SimulationClock`.
+  4. **Кольцевой буфер данных Data Plane (`SampleRingBuffer`)**:
+     - Предвыделенный массив `Float32Array` степени двойки (1 048 576 отсчетов).
+     - Безветвевая битовая маска индексации (`idx & (capacity - 1)`).
+     - Чтение хронологических окон для триггера и децимации без дополнительных аллокаций.
+     - Полная изоляция от GPU: данные не передаются напрямую в WebGL/Three.js.
+  5. **Верификация и бенчмарки**:
+     - 20 математических эталонных тестов (всего **119 тестов** в проекте, 100% PASS).
+     - Производительность двухканального тракта: **14.82 MSPS** (67.46 мс на 1 000 000 двухканальных отсчетов) при целевом требовании $\ge 5\text{ MSPS}$.
+     - 0 аллокаций памяти в цикле сбора данных.
+  6. **Документация для ВКР**:
+     - Создан [docs/architecture/acquisition-adc-model.md](file:///c:/diplom/docs/architecture/acquisition-adc-model.md) с полными аналитическими выкладками и уравнениями.
+     - Принят [docs/decisions/2026-09-06-ADR-004-acquisition-adc-physical-model.md](file:///c:/diplom/docs/decisions/2026-09-06-ADR-004-acquisition-adc-physical-model.md).
+- **Acceptance Gate**: **PASS** — Физический тракт AFE + ADC + RingBuffer полностью реализован, независимые CH1/CH2, 14.82 MSPS throughput, 119 тестов проходят.
+
+---
+
 # Next Wave
-- **Wave 7**: Virtual Acquisition Pipeline & Ring Buffers (Circular sample storage, Trigger detection engine, Decimation min/max/peak-detect, multi-channel acquisition).
+- **Wave 8**: Virtual Trigger Engine & Real-Time DSP Decimation (Hardware trigger comparator, Edge/Slope, Holdoff, Peak-Detect / Min-Max decimation for display, multi-channel ring buffer extraction).
 

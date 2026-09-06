@@ -1,5 +1,17 @@
 # Project Changelog
 
+## [Wave 7] - 2026-09-06
+### Added
+- Analog Front End model (`AnalogFrontEnd`) featuring AC/DC/GND coupling, 1X/10X probe attenuation, vertical gain ($A_v = 1/\text{voltsPerDiv}$), channel offset, 1st-order RC bandwidth limiter, Box-Muller Gaussian thermal noise, and analog rail saturation.
+- Physical ADC quantizer model (`ADCModel`) with configurable resolution (8-16 bits), uniform mid-tread transfer curve, LSB step derivation ($q = 2 V_{\text{FS}} / 2^N$), and overflow/underflow clipping indicators.
+- Multi-rate logical sample rate support: 1 MSPS, 2 MSPS, and 5 MSPS.
+- Isolated dual-channel acquisition (`AcquisitionChannel`) for CH1 and CH2 with zero crosstalk.
+- Multi-channel acquisition coordinator (`AcquisitionEngine`) synchronized to `SimulationClock`.
+- High-performance Data Plane ring buffer (`SampleRingBuffer`) with power-of-two capacity, branchless bitwise masking, and zero heap allocations.
+- Mathematical reference test suite with 20 tests verifying DC linearity, probe attenuation, offset subtraction, AC coupling high-pass, bandwidth limiter ($-3.01\text{ dB}$ at $f_c$), clipping, quantization, noise, and 14.82 MSPS dual-channel throughput (119 total tests passing).
+- Comprehensive physical documentation: `docs/architecture/acquisition-adc-model.md`.
+- Architectural Decision Record: `docs/decisions/2026-09-06-ADR-004-acquisition-adc-physical-model.md`.
+
 ## [Wave 6] - 2026-09-06
 ### Added
 - Deterministic simulation clock (`SimulationClock`) deriving time from integer sample counter: $t = n / f_s$ with zero cumulative drift over millions of samples.

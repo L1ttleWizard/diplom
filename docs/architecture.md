@@ -65,4 +65,5 @@ The system enforces a strict barrier between the **Control Plane** and the **Dat
 - **Oscilloscope Interaction**: Detailed in [3d-oscilloscope-interaction.md](./architecture/3d-oscilloscope-interaction.md).
 - **Virtual Display Subsystem**: Detailed in [oscilloscope-display.md](./architecture/oscilloscope-display.md).
 - **Deterministic Signal Engine**: Detailed in [signal-engine.md](./architecture/signal-engine.md).
+- **Acquisition & ADC Model**: Detailed in [acquisition-adc-model.md](./architecture/acquisition-adc-model.md).
 - **Runtime Topology**: Detailed in [runtime-topology.md](./architecture/runtime-topology.md).

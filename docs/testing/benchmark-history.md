@@ -163,4 +163,39 @@
   - Architectural Boundary Violations: **0**
   - TypeScript Diagnostics: **0 errors**
 
+---
+
+## Wave 7: Acquisition & ADC Model Performance Baseline
+
+- **Date**: 2026-09-06
+- **Environment**:
+  - Runtime: Node.js v24.14.1 (V8 engine) / Chrome DevTools V8
+  - OS: Windows x64
+  - Environment: Pure Node (zero DOM / zero Three.js / zero GPU)
+  - Virtual Sample Rate: 1.0 MSPS, 2.0 MSPS, 5.0 MSPS
+- **Dual-Channel Acquisition Pipeline Benchmarks**:
+  - Pipeline Stages: `SignalSource` $\to$ `AnalogFrontEnd` (filters, gain, offset, noise, rails) $\to$ `ADCModel` (quantization, clipping) $\to$ `SampleRingBuffer` (circular write)
+  - Full Dual-Channel Batch Processing (CH1 + CH2 simultaneously, 1,000,000 samples each = 2,000,000 conversions):
+    - Target: $\ge 5.0$ MSPS
+    - Measured Throughput: **14.82 MSPS** (67.46 ms per 1,000,000 dual-channel samples)
+    - Throughput Margin: **2.96x** higher than maximum required rate (5 MSPS)
+  - Steady-State Memory Allocation: **0 bytes/frame** (100% buffer reuse across scratch buffers and power-of-two ring buffer)
+- **Mathematical & Physical Validation**:
+  - AFE Gain Accuracy: Exact match ($A_v = 1/\text{voltsPerDiv}$) across scales (0.1, 0.5, 1.0, 2.0 V/div)
+  - AFE Offset Subtraction: Zero residual error ($V_{\text{scaled}} = (V_{\text{in}} - V_{\text{offset}}) \cdot A_v$)
+  - AC Coupling High-Pass: Exact DC blocking with decay to 0.0V
+  - Bandwidth Limiting: Exactly $-3.01\text{ dB}$ ($1/\sqrt{2} \approx 0.7071$) attenuation at cutoff frequency $f_c$
+  - Analog Noise: Zero mean ($\mu \approx 0.0$), standard deviation matching target $\sigma$
+  - Analog Rail Saturation: Hard clamping to preamplifier rails
+  - Quantization LSB: Exact step sizes $q = \frac{2 V_{\text{FS}}}{2^N}$ verified for 8, 10, 12, 16 bits
+  - Quantization Error: Strictly bounded $|e_q| \le q/2$ for all unclipped analog voltages
+  - ADC Saturation: Correct flag assertion (`clippedLow`, `clippedHigh`) on underflow/overflow
+  - Channel Isolation: Zero crosstalk between simultaneous CH1 and CH2 acquisition
+- **Unit Tests Performance**:
+  - Test Suites: **12 passed** (12 total)
+  - Tests: **119 passed** (119 total, +20 new tests for Wave 7)
+  - Test Execution Duration: 789 ms
+  - Architectural Boundary Violations: **0**
+  - TypeScript Diagnostics: **0 errors**
+
 

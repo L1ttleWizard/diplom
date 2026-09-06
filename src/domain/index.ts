@@ -29,3 +29,6 @@ export * from './simulation/DeterministicRandom';
 export * from './simulation/SignalGenerator';
 export * from './simulation/GoldenVectors';
 
+// Acquisition & ADC Model (Wave 7)
+export * from './acquisition';
+
