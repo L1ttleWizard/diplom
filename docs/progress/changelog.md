@@ -1,5 +1,22 @@
 # Project Changelog
 
+## [Wave 13] - 2026-09-06
+### Added
+- WebAssembly DSP Kernels extended with 128-bit SIMD vectorization and specialized DSP routines (`src/wasm/dsp_kernel.wat`).
+- No-op calibration function `dsp_noop` measuring raw JS-to-WASM call boundary latency (**2.45 – 2.95 ns / call**).
+- 128-bit SIMD statistical reduction kernel `dsp_compute_stats_simd` processing 4 `Float32` samples per instruction via `v128.load`, `f32x4.min`, `f32x4.max`, `f32x4.add`, and `f32x4.mul` with scalar loop tail handling.
+- Dedicated high-speed True RMS kernel `dsp_compute_rms_scalar` achieving **> 2,150 MSPS** (**1.67x – 1.87x faster than JavaScript V8 JIT**).
+- FIR Direct Convolution filter kernel `dsp_fir_filter` achieving **> 96 MSPS** on 32-tap filters (**3.28x – 3.58x faster than JavaScript V8 JIT**).
+- IIR Biquad Direct Form II Transposed filter kernel `dsp_iir_biquad` achieving **~500 MSPS** with verified numerical equivalence to TypeScript reference.
+- Zero-copy raw in-place execution paths (`computeStatsRaw`, `computeRmsRaw`) for data already residing in linear memory / SharedArrayBuffer.
+- Exhaustive comparative benchmark suite (`tests/wasm/wasm-vs-js.benchmark.test.ts`) covering call overhead, multi-size statistical reduction ($N = 64, 1000, 10000, 100000, 500000$), RMS, Peak-Detect decimation, FIR filtering, and IIR filtering.
+- Rigorous documentation of crossover points: for small buffers ($N \le 64$), V8 TurboFan inlined loops outperform WASM by ~15–28% due to memory copy overhead; for $N \ge 1,000$ and $O(N \cdot M)$ convolution, WASM delivers substantial gains.
+- 14 new unit tests in `tests/wasm/wasm-dsp.test.ts` (27 total WASM unit tests, 250 total repository tests passing across 26 test suites).
+- Full architectural and ADR documentation:
+  - `docs/decisions/2026-09-06-ADR-010-wasm-dsp-implementation-and-simd.md`
+  - `docs/architecture/dsp-wasm-abi.md`
+  - Updates to `docs/testing/benchmark-history.md`, `docs/api.md`, `docs/architecture.md`, `docs/progress/waves.md`.
+
 ## [Wave 12] - 2026-09-06
 ### Added
 - Independent, high-precision reference DSP library (`src/dsp/`) serving as the mathematical oracle for measurement and filtering routines.

@@ -1,9 +1,12 @@
 /**
- * WebAssembly DSP Engine (Wave 11)
+ * WebAssembly DSP Engine (Wave 11 & Wave 13)
  *
  * High-performance C-ABI WASM kernel wrapper for oscilloscope DSP:
- * - Statistical analysis (Vpp, Min, Max, RMS, Mean)
+ * - Statistical analysis (Vpp, Min, Max, RMS, Mean) — Scalar and 128-bit SIMD
+ * - Standalone True RMS computation
  * - Peak-Detect (Min/Max) display decimation
+ * - FIR filtering (Direct Convolution)
+ * - IIR Biquad filtering (Direct Form II Transposed)
  * - Zero-allocation fast-path with automatic memory growth
  */
 
@@ -19,6 +22,7 @@ import {
 } from './types';
 
 const STATS_OUT_PTR = 0;
+const IIR_STATE_PTR = 256;
 const DEFAULT_DECIMATE_OUT_MIN_PTR = 4096;
 const DEFAULT_INPUT_PTR = 32768;
 const WASM_PAGE_SIZE = 65536;
@@ -56,12 +60,21 @@ export class WasmDspEngine implements IWasmDspEngine {
   }
 
   /**
+   * Executes a no-op WASM function to measure raw JS-to-WASM call boundary overhead.
+   */
+  public callNoop(): number {
+    this.ensureInitialized();
+    return this._exports!.dsp_noop();
+  }
+
+  /**
    * Computes min, max, peak-to-peak (Vpp), RMS, and mean statistics for a Float32 sample buffer.
    *
    * @param samples - Raw analog/ADC sample buffer
+   * @param useSimd - Whether to execute 128-bit SIMD vector kernel (default: false)
    * @returns SignalStats containing analytical measurements
    */
-  public computeStats(samples: Float32Array): SignalStats {
+  public computeStats(samples: Float32Array, useSimd: boolean = false): SignalStats {
     this.ensureInitialized();
     const count = samples.length;
 
@@ -78,8 +91,22 @@ export class WasmDspEngine implements IWasmDspEngine {
     const inView = new Float32Array(wasmMemoryBuffer, inPtr, count);
     inView.set(samples);
 
-    // Call WASM DSP kernel
-    const res = this._exports!.dsp_compute_stats(inPtr, count, STATS_OUT_PTR);
+    return this.computeStatsRaw(inPtr, count, useSimd);
+  }
+
+  /**
+   * Fast in-place statistics computation assuming data is already preloaded in WASM linear memory.
+   */
+  public computeStatsRaw(inPtr: number, count: number, useSimd: boolean = false): SignalStats {
+    this.ensureInitialized();
+
+    let res: number;
+    if (useSimd && count >= 4) {
+      res = this._exports!.dsp_compute_stats_simd(inPtr, count, STATS_OUT_PTR);
+    } else {
+      res = this._exports!.dsp_compute_stats(inPtr, count, STATS_OUT_PTR);
+    }
+
     if (res !== WASM_ERR_OK) {
       throw new WasmDspError(res);
     }
@@ -104,14 +131,36 @@ export class WasmDspEngine implements IWasmDspEngine {
   }
 
   /**
+   * Computes True RMS using dedicated scalar kernel.
+   */
+  public computeRms(samples: Float32Array): number {
+    this.ensureInitialized();
+    const count = samples.length;
+    if (count <= 0) {
+      throw new WasmDspError(WASM_ERR_INVALID_COUNT, 'Sample count must be greater than zero');
+    }
+
+    const inPtr = DEFAULT_INPUT_PTR;
+    const requiredBytes = inPtr + count * 4;
+    this.ensureMemoryCapacity(requiredBytes);
+
+    const inView = new Float32Array(this._memory!.buffer, inPtr, count);
+    inView.set(samples);
+
+    return this.computeRmsRaw(inPtr, count);
+  }
+
+  /**
+   * In-place True RMS computation without JS array copying.
+   */
+  public computeRmsRaw(inPtr: number, count: number): number {
+    this.ensureInitialized();
+    return this._exports!.dsp_compute_rms_scalar(inPtr, count);
+  }
+
+  /**
    * Peak-Detect (Min/Max) decimation kernel.
    * Compresses inCount samples into bucketCount display buckets, tracking extremes per bucket.
-   *
-   * @param samples - Source sample buffer
-   * @param bucketCount - Number of display buckets (e.g. 500, 1000, 2048)
-   * @param outMin - Optional preallocated Float32Array for min values
-   * @param outMax - Optional preallocated Float32Array for max values
-   * @returns Object containing min and max arrays of size bucketCount
    */
   public peakDetectDecimate(
     samples: Float32Array,
@@ -167,6 +216,98 @@ export class WasmDspEngine implements IWasmDspEngine {
     maxArr.set(wasmOutMax);
 
     return { min: minArr, max: maxArr };
+  }
+
+  /**
+   * Filters an array of samples using the WASM FIR convolution kernel.
+   */
+  public filterFir(
+    samples: Float32Array,
+    coefficients: Float32Array,
+    outBuffer?: Float32Array
+  ): Float32Array {
+    this.ensureInitialized();
+    const count = samples.length;
+    const taps = coefficients.length;
+
+    if (count <= 0) {
+      throw new WasmDspError(WASM_ERR_INVALID_COUNT, 'Sample count must be > 0');
+    }
+    if (taps <= 0) {
+      throw new WasmDspError(WASM_ERR_INVALID_COUNT, 'Taps count must be > 0');
+    }
+
+    const out = outBuffer && outBuffer.length >= count ? outBuffer : new Float32Array(count);
+
+    const coeffPtr = 1024;
+    const outPtr = 4096;
+    const inPtr = Math.max(DEFAULT_INPUT_PTR, outPtr + count * 4);
+    const requiredBytes = inPtr + count * 4;
+
+    this.ensureMemoryCapacity(requiredBytes);
+
+    // Copy coefficients and samples
+    new Float32Array(this._memory!.buffer, coeffPtr, taps).set(coefficients);
+    new Float32Array(this._memory!.buffer, inPtr, count).set(samples);
+
+    const res = this._exports!.dsp_fir_filter(inPtr, outPtr, count, coeffPtr, taps);
+    if (res !== WASM_ERR_OK) {
+      throw new WasmDspError(res);
+    }
+
+    const wasmOut = new Float32Array(this._memory!.buffer, outPtr, count);
+    out.set(wasmOut);
+
+    return out;
+  }
+
+  /**
+   * Filters an array of samples using the WASM Direct Form II Transposed Biquad kernel.
+   */
+  public filterIirBiquad(
+    samples: Float32Array,
+    coeffs: { b0: number; b1: number; b2: number; a1: number; a2: number },
+    outBuffer?: Float32Array
+  ): Float32Array {
+    this.ensureInitialized();
+    const count = samples.length;
+    if (count <= 0) {
+      throw new WasmDspError(WASM_ERR_INVALID_COUNT, 'Sample count must be > 0');
+    }
+
+    const out = outBuffer && outBuffer.length >= count ? outBuffer : new Float32Array(count);
+
+    const statePtr = IIR_STATE_PTR;
+    const outPtr = 4096;
+    const inPtr = Math.max(DEFAULT_INPUT_PTR, outPtr + count * 4);
+    const requiredBytes = inPtr + count * 4;
+
+    this.ensureMemoryCapacity(requiredBytes);
+
+    // Initialize delay line states d1=0, d2=0
+    new Float32Array(this._memory!.buffer, statePtr, 2).fill(0.0);
+    new Float32Array(this._memory!.buffer, inPtr, count).set(samples);
+
+    const res = this._exports!.dsp_iir_biquad(
+      inPtr,
+      outPtr,
+      count,
+      coeffs.b0,
+      coeffs.b1,
+      coeffs.b2,
+      coeffs.a1,
+      coeffs.a2,
+      statePtr
+    );
+
+    if (res !== WASM_ERR_OK) {
+      throw new WasmDspError(res);
+    }
+
+    const wasmOut = new Float32Array(this._memory!.buffer, outPtr, count);
+    out.set(wasmOut);
+
+    return out;
   }
 
   /**

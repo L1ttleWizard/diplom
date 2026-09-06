@@ -46,9 +46,12 @@ export class WasmDspError extends Error {
 export interface WasmDspExports extends WebAssembly.Exports {
   memory: WebAssembly.Memory;
   dsp_init(): number;
+  dsp_noop(): number;
   dsp_get_input_buffer_ptr(): number;
   dsp_get_output_buffer_ptr(): number;
   dsp_compute_stats(inPtr: number, count: number, outPtr: number): number;
+  dsp_compute_stats_simd(inPtr: number, count: number, outPtr: number): number;
+  dsp_compute_rms_scalar(inPtr: number, count: number): number;
   dsp_peak_detect_decimate(
     inPtr: number,
     inCount: number,
@@ -56,17 +59,43 @@ export interface WasmDspExports extends WebAssembly.Exports {
     outMaxPtr: number,
     bucketCount: number
   ): number;
+  dsp_fir_filter(
+    inPtr: number,
+    outPtr: number,
+    count: number,
+    coeffPtr: number,
+    taps: number
+  ): number;
+  dsp_iir_biquad(
+    inPtr: number,
+    outPtr: number,
+    count: number,
+    b0: number,
+    b1: number,
+    b2: number,
+    a1: number,
+    a2: number,
+    statePtr: number
+  ): number;
 }
 
 export interface IWasmDspEngine {
   readonly isInitialized: boolean;
   readonly memoryByteSize: number;
   init(): Promise<void>;
-  computeStats(samples: Float32Array): SignalStats;
+  computeStats(samples: Float32Array, useSimd?: boolean): SignalStats;
+  computeRms(samples: Float32Array): number;
   peakDetectDecimate(
     samples: Float32Array,
     bucketCount: number,
     outMin?: Float32Array,
     outMax?: Float32Array
   ): { min: Float32Array; max: Float32Array };
+  filterFir(samples: Float32Array, coefficients: Float32Array, outBuffer?: Float32Array): Float32Array;
+  filterIirBiquad(
+    samples: Float32Array,
+    coeffs: { b0: number; b1: number; b2: number; a1: number; a2: number },
+    outBuffer?: Float32Array
+  ): Float32Array;
+  callNoop(): number;
 }

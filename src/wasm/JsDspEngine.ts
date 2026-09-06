@@ -1,5 +1,5 @@
 /**
- * Pure JavaScript Reference DSP Engine (Wave 11)
+ * Pure JavaScript Reference DSP Engine (Wave 11 & Wave 13)
  *
  * Provides a reference JavaScript implementation of the DSP routines
  * for baseline benchmarking, cross-validation, and fallback execution.
@@ -20,6 +20,10 @@ export class JsDspEngine implements IWasmDspEngine {
     // No-op for pure JS
   }
 
+  public callNoop(): number {
+    return 0;
+  }
+
   public computeStats(samples: Float32Array): SignalStats {
     const count = samples.length;
     if (count === 0) {
@@ -28,8 +32,8 @@ export class JsDspEngine implements IWasmDspEngine {
 
     let min = samples[0];
     let max = samples[0];
-    let sum = 0;
-    let sumSq = 0;
+    let sum = 0.0;
+    let sumSq = 0.0;
 
     for (let i = 0; i < count; i++) {
       const val = samples[i];
@@ -51,6 +55,21 @@ export class JsDspEngine implements IWasmDspEngine {
       mean,
       sampleCount: count,
     };
+  }
+
+  public computeRms(samples: Float32Array): number {
+    const count = samples.length;
+    if (count === 0) {
+      throw new Error('Sample count must be greater than zero');
+    }
+
+    let sumSq = 0.0;
+    for (let i = 0; i < count; i++) {
+      const val = samples[i];
+      sumSq += val * val;
+    }
+
+    return Math.sqrt(sumSq / count);
   }
 
   public peakDetectDecimate(
@@ -92,5 +111,51 @@ export class JsDspEngine implements IWasmDspEngine {
     }
 
     return { min: minArr, max: maxArr };
+  }
+
+  public filterFir(
+    samples: Float32Array,
+    coefficients: Float32Array,
+    outBuffer?: Float32Array
+  ): Float32Array {
+    const count = samples.length;
+    const taps = coefficients.length;
+    const out = outBuffer && outBuffer.length >= count ? outBuffer : new Float32Array(count);
+
+    for (let n = 0; n < count; n++) {
+      let acc = 0.0;
+      for (let k = 0; k < taps; k++) {
+        const idx = n - k;
+        if (idx >= 0) {
+          acc += coefficients[k] * samples[idx];
+        }
+      }
+      out[n] = acc;
+    }
+
+    return out;
+  }
+
+  public filterIirBiquad(
+    samples: Float32Array,
+    coeffs: { b0: number; b1: number; b2: number; a1: number; a2: number },
+    outBuffer?: Float32Array
+  ): Float32Array {
+    const count = samples.length;
+    const out = outBuffer && outBuffer.length >= count ? outBuffer : new Float32Array(count);
+
+    let d1 = 0.0;
+    let d2 = 0.0;
+    const { b0, b1, b2, a1, a2 } = coeffs;
+
+    for (let n = 0; n < count; n++) {
+      const x = samples[n];
+      const y = b0 * x + d1;
+      d1 = b1 * x - a1 * y + d2;
+      d2 = b2 * x - a2 * y;
+      out[n] = y;
+    }
+
+    return out;
   }
 }

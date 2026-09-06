@@ -422,13 +422,21 @@ export interface IWasmDspEngine {
   readonly isInitialized: boolean;
   readonly memoryByteSize: number;
   init(): Promise<void>;
-  computeStats(samples: Float32Array): SignalStats;
+  callNoop(): number;
+  computeStats(samples: Float32Array, useSimd?: boolean): SignalStats;
+  computeRms(samples: Float32Array): number;
   peakDetectDecimate(
     samples: Float32Array,
     bucketCount: number,
     outMin?: Float32Array,
     outMax?: Float32Array
   ): { min: Float32Array; max: Float32Array };
+  filterFir(samples: Float32Array, coefficients: Float32Array, outBuffer?: Float32Array): Float32Array;
+  filterIirBiquad(
+    samples: Float32Array,
+    coeffs: { b0: number; b1: number; b2: number; a1: number; a2: number },
+    outBuffer?: Float32Array
+  ): Float32Array;
 }
 ```
 
@@ -438,13 +446,23 @@ export class WasmDspEngine implements IWasmDspEngine {
   public get isInitialized(): boolean;
   public get memoryByteSize(): number;
   public init(): Promise<void>;
-  public computeStats(samples: Float32Array): SignalStats;
+  public callNoop(): number;
+  public computeStats(samples: Float32Array, useSimd?: boolean): SignalStats;
+  public computeStatsRaw(inPtr: number, count: number, useSimd?: boolean): SignalStats;
+  public computeRms(samples: Float32Array): number;
+  public computeRmsRaw(inPtr: number, count: number): number;
   public peakDetectDecimate(
     samples: Float32Array,
     bucketCount: number,
     outMin?: Float32Array,
     outMax?: Float32Array
   ): { min: Float32Array; max: Float32Array };
+  public filterFir(samples: Float32Array, coefficients: Float32Array, outBuffer?: Float32Array): Float32Array;
+  public filterIirBiquad(
+    samples: Float32Array,
+    coeffs: { b0: number; b1: number; b2: number; a1: number; a2: number },
+    outBuffer?: Float32Array
+  ): Float32Array;
 }
 ```
 
