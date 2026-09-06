@@ -4,6 +4,8 @@
   "description": "Browser Digital Twin of Laboratory Measuring Bench with 3D Oscilloscope",
   "type": "module",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
     "test": "vitest run",
     "test:domain": "vitest run tests/domain",
     "test:watch": "vitest",
@@ -12,8 +14,12 @@
   },
   "devDependencies": {
     "@types/node": "^22.13.9",
+    "@types/three": "^0.185.4",
     "typescript": "^5.7.3",
     "vite": "^6.2.0",
     "vitest": "^3.0.7"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
   }
 }
