@@ -236,4 +236,45 @@
   - Architectural Boundary Violations: **0**
   - TypeScript Diagnostics: **0 errors**
 
+---
+
+## Wave 9: Bounded Circular Ring Buffer Performance & Soak Analysis
+
+- **Date**: 2026-09-06
+- **Environment**:
+  - Runtime: Node.js v24.14.1 (V8 Engine) / Chromium
+  - OS: Windows x64
+  - Memory: Pre-allocated single `Float32Array` with power-of-two capacity ($2^K$)
+  - Indexing: Branchless bitwise masking (`index & mask`) with monotonic 64-bit pointers
+- **Throughput & Latency Benchmarks**:
+  - **Zero-Allocation Write & Read Throughput**:
+    - Batch Size: 1,000,000 samples
+    - Total Time (Write + Read): **1.71 – 2.33 ms**
+    - Throughput: **429.76 – 583.94 Mops/sec**
+    - Dynamic Heap Allocations: **0 bytes** (strict buffer reuse)
+  - **Single Sample `writeOne` / `readOne`**:
+    - Overhead: < 2.5 nanoseconds per operation
+- **Long-Running Soak Stress Test**:
+  - Sample Count: **10,000,000 samples**
+  - Streaming Pattern: Pseudo-random burst sizes (1 to 4096 samples) alternating write/read
+  - Processing Time: **32.25 – 40.53 ms**
+  - Sustained Streaming Rate: **246.71 – 310.11 MSPS**
+  - Data Integrity Verification: Strict sequence check ($V_k = V_{k-1} + 1$) across all 10M samples without drop or drift
+  - Memory Profile: Zero memory creep; heap allocation delta = 0 bytes
+- **Policies Verification**:
+  - `OVERWRITE`: Correct advance of `_readIndex` when writing bursts exceeding available space and full buffer capacity
+  - `DROP`: Strict preservation of unread data and accurate tracking of dropped samples via `overflowCount`
+  - `ERROR`: Immediate throwing of `RingBufferOverflowError` without state corruption
+  - `PARTIAL`: Graceful return of available samples on reader faster than writer
+  - `ZERO_FILL`: Zero-padded contiguous buffer reads without allocation
+  - `ERROR`: Immediate throwing of `RingBufferUnderflowError`
+- **Unit Tests Performance**:
+  - Test Suites: **14 passed** (14 total)
+  - Tests: **148 passed** (148 total, +17 new tests for Wave 9)
+  - Test Execution Duration: 771 ms
+  - Architectural Boundary Violations: **0**
+  - TypeScript Diagnostics: **0 errors**
+  - Vite Production Build: **856 ms**
+
+
 
