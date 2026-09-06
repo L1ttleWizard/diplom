@@ -152,12 +152,18 @@ document.addEventListener('DOMContentLoaded', () => {
     await workerClient.restart();
   });
 
-  // Metrics HUD updater (every 250ms)
+  // Metrics HUD elements
   const valFps = document.getElementById('val-fps');
   const valFrameTime = document.getElementById('val-frame-time');
   const valPercentiles = document.getElementById('val-percentiles');
   const valDrawCalls = document.getElementById('val-draw-calls');
   const valTriangles = document.getElementById('val-triangles');
+
+  // Test Bench HUD Elements
+  const valTbSignal = document.getElementById('val-tb-signal');
+  const valTbScales = document.getElementById('val-tb-scales');
+  const valTbWindow = document.getElementById('val-tb-window');
+  const valTbTrigger = document.getElementById('val-tb-trigger');
 
   setInterval(() => {
     const metrics = runtime.getMetrics();
@@ -176,6 +182,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (valWorkerLatency) {
       const lat = workerClient.latestLatencyMs;
       valWorkerLatency.textContent = lat > 0 ? `${lat.toFixed(2)} ms` : '--';
+    }
+
+    // Test Bench Telemetry
+    const tb = runtime.getTestBenchTelemetry();
+    if (valTbSignal) {
+      valTbSignal.textContent = `${(tb.frequency / 1000).toFixed(2)} kHz / ${tb.amplitude.toFixed(2)} V`;
+    }
+    if (valTbScales) {
+      const tStr = tb.timeDiv >= 1 ? `${tb.timeDiv.toFixed(1)}s` : tb.timeDiv >= 1e-3 ? `${(tb.timeDiv * 1e3).toFixed(1)}ms` : `${(tb.timeDiv * 1e6).toFixed(0)}µs`;
+      const vStr = tb.voltsDiv >= 1 ? `${tb.voltsDiv.toFixed(1)}V` : `${(tb.voltsDiv * 1e3).toFixed(0)}mV`;
+      valTbScales.textContent = `${tStr}/div | ${vStr}/div`;
+    }
+    if (valTbWindow) {
+      const wMs = tb.visibleTimeWindow * 1e3;
+      const wPts = Math.round(tb.visibleTimeWindow * tb.sampleRate);
+      valTbWindow.textContent = `${wMs >= 1 ? wMs.toFixed(2) + ' ms' : (wMs * 1e3).toFixed(1) + ' µs'} (${wPts.toLocaleString()} pts)`;
+    }
+    if (valTbTrigger) {
+      valTbTrigger.textContent = `CH1 @ ${tb.triggerLevel >= 0 ? '+' : ''}${tb.triggerLevel.toFixed(2)}V [${tb.triggered ? 'LOCK' : 'AUTO'}]`;
+      valTbTrigger.style.color = tb.triggered ? '#3fb950' : '#d29922';
     }
   }, 250);
 });

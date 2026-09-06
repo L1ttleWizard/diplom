@@ -54,7 +54,7 @@ export class DynamicDisplayLayer {
 
   private renderWaveform(
     ctx: CanvasRenderingContext2D,
-    _state: DisplayStateSnapshot | undefined,
+    state: DisplayStateSnapshot | undefined,
     left: number,
     top: number,
     gw: number,
@@ -63,53 +63,112 @@ export class DynamicDisplayLayer {
     const centerY = top + gh / 2;
     const divY = gh / 8;
 
-    // Reference calibrated line
-    const refY = centerY - divY * 2;
-    ctx.strokeStyle = 'rgba(230, 126, 34, 0.6)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([6, 6]);
-    ctx.beginPath();
-    ctx.moveTo(left, refY);
-    ctx.lineTo(left + gw, refY);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    // Reference calibrated line (+2.0V)
+    const voltDiv = state?.ch1VoltDivValue ?? 1.0;
+    const refVoltage = 2.0;
+    const refDivOffset = refVoltage / voltDiv;
+    const refY = centerY - refDivOffset * divY;
 
-    ctx.fillStyle = 'rgba(230, 126, 34, 0.85)';
-    ctx.font = '11px monospace';
-    ctx.fillText('REF CALIB +2.0V', left + 10, refY - 6);
+    if (refY >= top && refY <= top + gh) {
+      ctx.strokeStyle = 'rgba(230, 126, 34, 0.4)';
+      ctx.lineWidth = 1.0;
+      ctx.setLineDash([4, 6]);
+      ctx.beginPath();
+      ctx.moveTo(left, refY);
+      ctx.lineTo(left + gw, refY);
+      ctx.stroke();
+      ctx.setLineDash([]);
 
-    // Dynamic sine wave
-    ctx.strokeStyle = '#2ecc71';
-    ctx.lineWidth = 2.0;
-    ctx.beginPath();
-
-    const points = 240;
-    const speed = this._animTime * 2.5;
-
-    for (let i = 0; i <= points; i++) {
-      const frac = i / points;
-      const x = left + frac * gw;
-      const y = centerY - Math.sin(frac * Math.PI * 6 - speed) * divY * 2.5;
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
+      ctx.fillStyle = 'rgba(230, 126, 34, 0.7)';
+      ctx.font = '10px monospace';
+      ctx.fillText(`REF +2.0V (${refDivOffset.toFixed(1)}div)`, left + 10, refY - 4);
     }
-    ctx.stroke();
 
-    // Moving test indicator
-    const markerFrac = (this._animTime * 0.3) % 1.0;
-    const markerX = left + markerFrac * gw;
-    const markerY = centerY - Math.sin(markerFrac * Math.PI * 6 - speed) * divY * 2.5;
+    // CH1 Waveform (Green)
+    const ch1Enabled = state?.ch1Enabled ?? true;
+    if (ch1Enabled) {
+      ctx.strokeStyle = '#2ecc71';
+      ctx.lineWidth = 2.0;
+      ctx.beginPath();
 
-    ctx.fillStyle = '#f1c40f';
-    ctx.beginPath();
-    ctx.arc(markerX, markerY, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+      if (state?.ch1DisplayBuffer && state.ch1DisplayBuffer.length > 1) {
+        // Render from real Data Plane Display Buffer
+        const buf = state.ch1DisplayBuffer;
+        const count = buf.length;
+        for (let i = 0; i < count; i++) {
+          const frac = i / (count - 1);
+          const x = left + frac * gw;
+          const divOffset = buf[i];
+          const y = centerY - divOffset * divY;
+
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+      } else {
+        // Calibrated analytical model (1 kHz sine, 1.0 V peak)
+        const timeDiv = state?.timeDivValue ?? 0.001; // seconds per div
+        const trigLevel = state?.triggerLevelValue ?? 0.0;
+        const totalWindow = 10 * timeDiv; // 10 horizontal divisions
+        const signalFreq = 1000; // 1 kHz
+        const signalAmp = 1.0;  // 1.0 V peak
+        const cycles = signalFreq * totalWindow;
+
+        // Trigger phase lock at center of screen (frac = 0.5)
+        const clampedTrig = Math.max(-signalAmp, Math.min(signalAmp, trigLevel));
+        const centerPhase = Math.asin(clampedTrig / signalAmp);
+
+        const points = 300;
+        for (let i = 0; i <= points; i++) {
+          const frac = i / points;
+          const x = left + frac * gw;
+          // Phase relative to center division
+          const phase = centerPhase + 2 * Math.PI * cycles * (frac - 0.5);
+          const v = signalAmp * Math.sin(phase);
+          const divOffset = v / voltDiv;
+          const y = centerY - divOffset * divY;
+
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+      }
+      ctx.stroke();
+
+      // Trigger lock point indicator at center of screen
+      const trigCenterY = centerY - ((state?.triggerLevelValue ?? 0.0) / voltDiv) * divY;
+      const centerX = left + gw * 0.5;
+      ctx.fillStyle = state?.triggerLocked !== false ? '#f1c40f' : 'rgba(241, 196, 15, 0.4)';
+      ctx.beginPath();
+      ctx.arc(centerX, trigCenterY, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+
+    // CH2 Waveform (Cyan) if enabled
+    if (state?.ch2Enabled && state.ch2DisplayBuffer && state.ch2DisplayBuffer.length > 1) {
+      const ch2VoltDiv = state.ch2VoltDivValue ?? 1.0;
+      ctx.strokeStyle = '#3498db';
+      ctx.lineWidth = 2.0;
+      ctx.beginPath();
+      const buf2 = state.ch2DisplayBuffer;
+      const count2 = buf2.length;
+      for (let i = 0; i < count2; i++) {
+        const frac = i / (count2 - 1);
+        const x = left + frac * gw;
+        const divOffset = buf2[i];
+        const y = centerY - divOffset * divY;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
   }
 
   private renderTrigger(

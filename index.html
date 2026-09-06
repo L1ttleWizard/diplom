@@ -187,7 +187,27 @@
         <button id="btn-worker-restart" style="flex: 1;">RESTART</button>
       </div>
 
-      <div class="button-group">
+      <div class="divider"></div>
+
+      <div style="font-size: 11px; color: #8b949e; margin-bottom: 4px;">Test Bench Telemetry (Wave 10 Pre-req):</div>
+      <div class="metric-row">
+        <span class="metric-label">Signal:</span>
+        <span class="metric-value" id="val-tb-signal">1.00 kHz / 1.00 V</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Time/Div & Volts/Div:</span>
+        <span class="metric-value" id="val-tb-scales">1.00 ms | 1.00 V</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Visible Window:</span>
+        <span class="metric-value" id="val-tb-window">10.00 ms (10k pts)</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Trigger:</span>
+        <span class="metric-value" id="val-tb-trigger">CH1 @ 0.00V [LOCK]</span>
+      </div>
+
+      <div class="button-group" style="margin-top: 10px;">
         <button id="btn-run-stop" style="flex: 1; background: #238636; color: white;">RUN / STOP</button>
       </div>
 

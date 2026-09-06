@@ -299,6 +299,79 @@
 
 ---
 
+# Wave 9: Ring Buffer
+
+- **Status**: DONE
+- **Goal**: Создать ограниченный циклический буфер (`BoundedRingBuffer`) для непрерывного потока числовых отсчетов (`Float32Array`) с полным отсутствием аллокаций в горячем цикле, политиками переполнения/опустошения (`OVERWRITE`, `DROP`, `ERROR` / `PARTIAL`, `ZERO_FILL`, `ERROR`), стресс-тестом на длительный прогон (soak test) и бенчмарками.
+- **Implemented**:
+  1. **Архитектура кольцевого буфера (`src/data/BoundedRingBuffer.ts`)**:
+     - Округление емкости до ближайшей степени двойки ($C = 2^K$) через `Math.clz32`.
+     - Безветвевое циклическое индексирование через побитовую маску: `idx & (C - 1)`.
+     - Монотонно возрастающие 64-битные указатели `_writeIndex` и `_readIndex` (гарантия уникальности индексов на 57 000 лет непрерывной работы при 5 MSPS).
+     - Полноценный API: `write`, `writeOne`, `read`, `readOne`, `peek`, `readLatest`, `readWindow`, `available`, `freeSpace`, `wraparound`, `wrapCount`, `reset`, `stats`.
+  2. **Политики управления переполнением (Overflow Policies)**:
+     - `OVERWRITE`: Сдвиг указателя чтения с вытеснением старейших данных при переполнении пакетом или одиночным отсчетом.
+     - `DROP`: Отбрасывание избыточных отсчетов с фиксацией в счетчике `overflowCount` и сохранением непрочитанной истории.
+     - `ERROR`: Выбрасывание `RingBufferOverflowError` при недостатке свободного места.
+  3. **Политики управления опустошением (Underflow Policies)**:
+     - `PARTIAL`: Чтение только фактически доступных отсчетов без блокировки.
+     - `ZERO_FILL`: Заполнение недостающих элементов массива нулями (`0.0`).
+     - `ERROR`: Выбрасывание `RingBufferUnderflowError` при попытке чтения сверх доступного объема.
+  4. **Инвариант нулевых аллокаций памяти**:
+     - 0 байт динамических аллокаций при любых операциях `write`, `read`, `peek`, `readLatest`.
+     - Буфер `Float32Array` создается один раз при инициализации.
+  5. **Сохранение обратной совместимости (`SampleRingBuffer`)**:
+     - Класс `SampleRingBuffer` расширяет `BoundedRingBuffer`, сохраняя все контракты для Wave 7 и Wave 8.
+  6. **Нагрузочное тестирование и верификация (`tests/data/ring-buffer.test.ts`)**:
+     - 17 модульных и стресс-тестов: пустой, полный, один элемент, переход через границу массива, 100-кратный wrap-around, быстрый писатель, быстрый читатель, все политики.
+     - **Long-Running Soak Test**: 10 000 000 отсчетов непрерывного потока пакетами случайной длины (1–4096) обработаны за **32.25 мс** (**310.11 MSPS**) со строгой проверкой непрерывности последовательности ($V_k = V_{k-1} + 1$) и плоским графиком памяти.
+     - **Zero-Allocation Benchmark**: 1 000 000 операций записи и чтения за **1.71 – 2.33 мс** (**429.76 – 583.94 Mops/sec**).
+     - Всего в проекте **148 тестов** в 14 тестовых наборах (100% PASS).
+  7. **Документация**:
+     - Создан [docs/architecture/data-plane.md](file:///c:/diplom/docs/architecture/data-plane.md).
+     - Принят [docs/decisions/2026-09-06-ADR-006-bounded-sample-ring-buffer.md](file:///c:/diplom/docs/decisions/2026-09-06-ADR-006-bounded-sample-ring-buffer.md).
+     - Обновлены [docs/testing/benchmark-history.md](file:///c:/diplom/docs/testing/benchmark-history.md) и [docs/api.md](file:///c:/diplom/docs/api.md).
+- **Acceptance Gate**: **PASS** — Bounded circular ring buffer полностью реализован, zero allocations, 10M soak test пройден со скоростью > 300 MSPS, 148 тестов проходят.
+
+---
+
+# Milestone: Test Bench & Control-to-Display Restoration
+
+- **Status**: DONE
+- **Trigger / Problem**: При ручном тестировании 3D-модели осциллографа обнаружена рассинхронизация: вращение интерактивных 3D-ручек (Time/Div, Volts/Div, Trigger Level) не приводило к изменению отображаемого сигнала на виртуальном экране.
+- **Root Cause**:
+  В модуле `DynamicDisplayLayer.renderWaveform` оставалась статическая аналитическая заглушка этапа Wave 4 (`Math.sin(frac * Math.PI * 6 - speed) * divY * 2.5`), жестко задававшая 3 фиксированных периода и 2.5 деления амплитуды. Она полностью игнорировала `timeDivValue`, `ch1VoltDivValue`, `triggerLevelValue` и не была подключена к реальному кольцевому буферу Data Plane.
+- **Implemented**:
+  1. **Сквозной Test Bench (`src/application/testbench/TestBench.ts`)**:
+     - Непрерывный детерминированный измерительный контур: `SignalGenerator (1 kHz Sine, 1.0 V Peak, 0 V Offset, 1 MSPS)` $\to$ `BoundedRingBuffer (65,536 samples)` $\to$ `Trigger Comparator` $\to$ `Window Decimator (10 * timeDiv)` $\to$ `DisplayBuffer (Float32Array)`.
+     - Zero Allocations: Все операции сбора, децимации и передачи данных происходят в предвыделенных буферах без единого вызова сборщика мусора.
+  2. **Подключение экранного буфера к `DynamicDisplayLayer`**:
+     - Добавлены поля `ch1DisplayBuffer`, `ch2DisplayBuffer`, `triggerLocked` в `DisplayStateSnapshot`.
+     - `DynamicDisplayLayer` считывает реальные отсчеты напряжения и пересчитывает их в экранные пиксели по формуле:
+       $$y_{\text{screen}} = y_{\text{center}} - \frac{V_{\text{sample}} - V_{\text{offset}}}{\text{voltsDiv}} \cdot \left(\frac{H_{\text{grid}}}{8}\right)$$
+  3. **Интеграция в `Oscilloscope3DRuntime`**:
+     - В конструктор и кадровый цикл `renderLoop` интегрирован `TestBench`.
+     - На каждом анимационном кадре (~60 FPS) рассчитывается кадр децимации `ch1DisplayBuffer` и передается в `DisplayEngine`.
+     - При получении доменных событий изменения масштаба обновляется визуальный угол поворота 3D-меша ручки (`knob.rotation.z`).
+  4. **Диагностическая телеметрия (`TestBenchTelemetry`)**:
+     - Добавлен HUD оверлей с параметрами: `frequency`, `amplitude`, `sampleRate`, `timeDiv`, `voltsDiv`, `triggerLevel`, `visibleTimeWindow`, `displayBufferSize`, `triggerLocked`.
+  5. **Сквозные автоматизированные тесты (`tests/application/test-bench.test.ts`)**:
+     - 7 тестов: валидация генерации, фиксация триггера, инвариант Volts/Div (масштаб без изменения сигнала), инвариант Time/Div (окно без изменения частоты), выравнивание триггера, реакция на pointer drag 3D-ручек Time/Div и Volt/Div.
+     - Всего в проекте **155 тестов** (100% PASS).
+  6. **Живая верификация в браузере (Headless Chromium CDP)**:
+     - 1 кГц синусоида четко стабилизирована в центре экрана.
+     - Переключение $1\text{ В/дел} \to 0.5\text{ В/дел}$ увеличивает видимую высоту в 2 раза.
+     - Переключение $1\text{ мс/дел} \to 200\ \mu\text{с/дел}$ показывает ровно 2 периода сигнала.
+     - Смещение порога триггера до $+0.5\text{ В}$ смещает точку перехода точно на метку $\text{T}\blacktriangleright$ в центре экрана.
+     - Вращение 3D-ручки через pointer drag физически поворачивает ручку в 3D и переключает шкалы осциллографа.
+  7. **Документация**:
+     - Создан [docs/testing/test-bench.md](file:///c:/diplom/docs/testing/test-bench.md).
+     - Создан [docs/architecture/control-to-display-flow.md](file:///c:/diplom/docs/architecture/control-to-display-flow.md).
+- **Acceptance Gate**: **PASS** — Test Bench полностью функционирует, инварианты метрологии соблюдены, 3D-интерактивность и визуальная обратная связь подтверждены живыми тестами.
+
+---
+
 # Next Wave
-- **Wave 9**: Virtual Trigger Engine & Real-Time DSP Decimation (Hardware trigger comparator, Edge/Slope, Holdoff, Peak-Detect / Min-Max decimation for display, multi-channel ring buffer extraction).
+- **Wave 10**: Virtual Trigger Engine & DSP Decimation (Продвинутый цифровой компаратор синхронизации, фронт/спад Edge Trigger, Holdoff, Min/Max Peak-Detect децимация для 60 FPS вывода на экран, адаптация окна отображения, потоковая передача из воркера).
+
 

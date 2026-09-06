@@ -56,4 +56,8 @@ export interface DisplayStateSnapshot {
   sampleRateStr: string;
   cursors?: Partial<CursorState>;
   measurements?: MeasurementItem[];
+  ch1DisplayBuffer?: Float32Array;
+  ch2DisplayBuffer?: Float32Array;
+  triggerLocked?: boolean;
 }
+

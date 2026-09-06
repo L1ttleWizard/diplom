@@ -11,6 +11,7 @@ import { RaycastManager } from '../interaction/RaycastManager';
 import { OscilloscopeInteractionAdapter } from '../interaction/OscilloscopeInteractionAdapter';
 import { DisplayEngine } from '../display/DisplayEngine';
 import { OscilloscopeService } from '../../application/services/OscilloscopeService';
+import { TestBench, TestBenchTelemetry } from '../../application/testbench/TestBench';
 import { PerformanceTier, PerformanceMetrics } from '../types';
 
 export interface RuntimeOptions {
@@ -18,6 +19,7 @@ export interface RuntimeOptions {
   container?: HTMLElement;
   tier?: PerformanceTier;
   service?: OscilloscopeService;
+  testBench?: TestBench;
 }
 
 export class Oscilloscope3DRuntime {
@@ -28,6 +30,7 @@ export class Oscilloscope3DRuntime {
   public readonly assetLifecycle: AssetLifecycle;
   public readonly performanceMonitor: PerformanceMonitor;
   public readonly service: OscilloscopeService;
+  public readonly testBench: TestBench;
   public readonly raycastManager: RaycastManager;
   public readonly displayEngine: DisplayEngine;
 
@@ -50,6 +53,7 @@ export class Oscilloscope3DRuntime {
 
   constructor(options: RuntimeOptions = {}) {
     this.service = options.service ?? new OscilloscopeService();
+    this.testBench = options.testBench ?? new TestBench({}, this.service);
     this.assetLifecycle = new AssetLifecycle();
     this.performanceMonitor = new PerformanceMonitor();
 
@@ -88,6 +92,11 @@ export class Oscilloscope3DRuntime {
 
     // Render loop callback for display update
     this.renderLoop.addCallback((deltaMs) => {
+      // Advance TestBench signal pipeline & compute display buffer
+      this.testBench.step(deltaMs);
+      const ch1DisplayBuffer = this.testBench.computeDisplayBuffer();
+      const telemetry = this.testBench.getTelemetry();
+
       const scope = this.service.oscilloscope;
       this.displayEngine.render(
         {
@@ -104,7 +113,9 @@ export class Oscilloscope3DRuntime {
           triggerLevelStr: `CH1 ${scope.trigger.level.toFixed(2)}V`,
           triggerLevelValue: scope.trigger.level,
           triggerSource: scope.trigger.source,
-          sampleRateStr: `${(scope.acquisition.sampleRate / 1e6).toFixed(2)} MS/s`
+          sampleRateStr: `${(this.testBench.config.sampleRate / 1e6).toFixed(2)} MS/s`,
+          ch1DisplayBuffer,
+          triggerLocked: telemetry.triggered
         },
         deltaMs
       );
@@ -260,6 +271,10 @@ export class Oscilloscope3DRuntime {
   public getMetrics(): PerformanceMetrics {
     const rendererInstance = typeof document !== 'undefined' ? this.rendererBootstrap.renderer : undefined;
     return this.performanceMonitor.getMetrics(rendererInstance);
+  }
+
+  public getTestBenchTelemetry(): TestBenchTelemetry {
+    return this.testBench.getTelemetry();
   }
 
   public start(): void {

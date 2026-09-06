@@ -1,5 +1,29 @@
 # Project Changelog
 
+## [Test Bench Milestone] - 2026-09-06
+### Fixed
+- Fixed static diagnostic waveform stub in `DynamicDisplayLayer` that ignored domain state and 3D knob inputs.
+- Restored end-to-end signal flow from `SignalGenerator` (1 kHz, 1 V, 1 MSPS) -> `BoundedRingBuffer` -> `Trigger Comparator` -> `Window Decimator` -> `DisplayBuffer` -> `DynamicDisplayLayer` -> Three.js 3D Screen Texture.
+- Synchronized 3D knob mesh rotations (`knob.rotation.z`) with domain aggregate state events (`TimeBaseChangedEvent`, `VoltsPerDivChangedEvent`).
+- Added real-time HUD telemetry overlay displaying physical signal frequency, amplitude, sample rate, time/div, volts/div, trigger level, window duration, and trigger lock state.
+- Created `tests/application/test-bench.test.ts` with 7 automated end-to-end tests validating metrological invariants and 3D pointer drag interactions (155 total repository tests passing).
+- Created `docs/testing/test-bench.md` and `docs/architecture/control-to-display-flow.md`.
+
+## [Wave 9] - 2026-09-06
+### Added
+- Bounded circular sample ring buffer (`BoundedRingBuffer`) in `src/data/BoundedRingBuffer.ts` utilizing power-of-two capacity ($2^K$) and branchless bitwise masking (`idx & mask`).
+- Monotonic 64-bit cumulative pointer arithmetic (`_writeIndex`, `_readIndex`), eliminating index wrap ambiguity and supporting continuous 5 MSPS acquisition for up to 57,000 years.
+- Explicit configurable overflow policies: `OVERWRITE` (default circular push), `DROP` (tail drop), `ERROR` (`RingBufferOverflowError`).
+- Explicit configurable underflow policies: `PARTIAL` (default non-blocking drain), `ZERO_FILL` (0.0 padding for DSP), `ERROR` (`RingBufferUnderflowError`).
+- Non-destructive query APIs (`peek`, `readLatest`, `readWindow`) tailored for trigger detection and display decimation.
+- Strict Zero-Allocation Invariant: 0 bytes heap allocations on all write and read paths.
+- Backward compatibility layer (`SampleRingBuffer`) extending `BoundedRingBuffer` for seamless interop with Wave 7 and Wave 8 components.
+- Exhaustive test suite with 17 tests (`tests/data/ring-buffer.test.ts`): empty, full, single element, boundary wrap, 100x wrap-around, fast reader, fast writer, all policies, long-running soak test, and zero-allocation throughput benchmark.
+- 10,000,000-sample randomized burst soak test streaming at **> 300 MSPS** with zero sequence drift ($V_k = V_{k-1} + 1$) and flatline heap memory.
+- Zero-allocation benchmark achieving **> 430 Mops/sec** throughput (1.71 – 2.33 ms per 1,000,000 samples).
+- Full Data Plane architecture document: `docs/architecture/data-plane.md`.
+- Architectural Decision Record: `docs/decisions/2026-09-06-ADR-006-bounded-sample-ring-buffer.md`.
+
 ## [Wave 8] - 2026-09-06
 ### Added
 - Dedicated background Web Worker (`acquisition.worker.ts`) and headless core (`AcquisitionWorkerCore`) for continuous signal synthesis and ADC acquisition.

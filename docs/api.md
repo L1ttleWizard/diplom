@@ -254,4 +254,72 @@ export class AcquisitionWorkerClient {
 }
 ```
 
+---
+
+## 7. Data Plane Bounded Ring Buffer API (`src/data/`)
+
+### 7.1 Configuration & Policies (`src/data/types.ts`)
+```typescript
+export type OverflowPolicy = 'OVERWRITE' | 'DROP' | 'ERROR';
+export type UnderflowPolicy = 'PARTIAL' | 'ZERO_FILL' | 'ERROR';
+
+export interface RingBufferOptions {
+  capacity: number;
+  overflowPolicy?: OverflowPolicy;   // Default: 'OVERWRITE'
+  underflowPolicy?: UnderflowPolicy; // Default: 'PARTIAL'
+}
+
+export interface RingBufferStats {
+  capacity: number;
+  available: number;
+  freeSpace: number;
+  totalWritten: number;
+  totalRead: number;
+  overflowCount: number;
+  underflowCount: number;
+  wrapCount: number;
+  overflowPolicy: OverflowPolicy;
+  underflowPolicy: UnderflowPolicy;
+}
+```
+
+### 7.2 `BoundedRingBuffer` (`src/data/BoundedRingBuffer.ts`)
+```typescript
+export class BoundedRingBuffer {
+  constructor(options: RingBufferOptions);
+
+  // Buffer state properties
+  public get capacity(): number;
+  public get available(): number;
+  public get freeSpace(): number;
+  public get totalWritten(): number;
+  public get totalRead(): number;
+  public get wraparound(): boolean;
+  public get wrapCount(): number;
+  public get overflowCount(): number;
+  public get underflowCount(): number;
+
+  // Zero-allocation write methods
+  public write(samples: Float32Array | number[], count?: number): number;
+  public writeOne(sample: number): boolean;
+
+  // Zero-allocation read methods
+  public read(destination: Float32Array, count?: number): number;
+  public readOne(): number | null;
+
+  // Non-destructive queries (trigger / display)
+  public peek(offsetFromRead?: number): number | null;
+  public readLatest(destination: Float32Array, count: number): number;
+  public readWindow(destination: Float32Array, globalStartIndex: number, count: number): number;
+
+  // Maintenance & telemetry
+  public reset(): void;
+  public getStats(): RingBufferStats;
+}
+```
+
+### 7.3 `SampleRingBuffer` (`src/data/SampleRingBuffer.ts`)
+Specialized subclass of `BoundedRingBuffer` providing backward-compatible signatures for oscilloscope acquisition pipelines.
+
+
 
