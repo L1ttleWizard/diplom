@@ -1,0 +1,4 @@
+interface:
+  display_name: "Three.js Game Studio"
+  short_description: "Coordinate complete, production-ready Three.js games"
+  default_prompt: "Use $threejs-game-studio to inspect this Three.js project, select the smallest relevant workflow and bundled references, implement the player-facing game outcome, and verify it in a real browser."

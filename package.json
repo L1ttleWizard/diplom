@@ -1,0 +1,19 @@
+{
+  "name": "browser-digital-twin-oscilloscope",
+  "version": "0.1.0",
+  "description": "Browser Digital Twin of Laboratory Measuring Bench with 3D Oscilloscope",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:domain": "vitest run tests/domain",
+    "test:watch": "vitest",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "typescript": "^5.7.3",
+    "vite": "^6.2.0",
+    "vitest": "^3.0.7"
+  }
+}

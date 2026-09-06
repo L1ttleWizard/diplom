@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "threejs-perf": {
+      "source": "playableintelligence/game-creator",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-perf/SKILL.md",
+      "computedHash": "c3c91183ed1d5e00e45b955de49202b7f6ce3fb9cf3fa79ef86b9b0478ee1a22"
+    }
+  }
+}
