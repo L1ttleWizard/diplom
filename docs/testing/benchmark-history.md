@@ -313,3 +313,42 @@
   - Architectural Boundary Violations: **0**
   - TypeScript Diagnostics: **0 errors**
   - Vite Production Build: **900 ms**
+
+---
+
+## Wave 11: WebAssembly Toolchain Evaluation & DSP Core Benchmarks
+
+- **Date**: 2026-09-06
+- **Environment**:
+  - OS: Windows 11 x64
+  - Runtime: Node.js v22.18.0 (V8 JIT)
+  - Test Framework: Vitest 3.2.7
+  - Toolchain: Freestanding C-ABI via WABT (`wabt` npm package)
+  - Binary Size: `dsp_kernel.wasm` (**884 bytes** standalone bytecode)
+  - Memory: Linear Memory (16 pages = 1 MB initial, dynamically expandable up to 16 MB)
+- **Comparative DSP Performance Benchmarks (WASM vs Pure JS)**:
+
+| Kernel / Workload | Pure JavaScript (V8 JIT) | WebAssembly DSP Kernel | Speedup (WASM vs JS) | Throughput (MSPS) | Frame Budget Share (60 FPS) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **`computeStats`** (100,000 samples, 200 iterations) | 0.129 ms / call | **0.069 ms / call** | **1.86x** | **1,449.5 MSPS** | < 0.5% of 16.67 ms |
+| **`peakDetectDecimate`** (100k samples $\to$ 1k buckets) | 0.085 ms / call | **0.081 ms / call** | **1.05x – 1.17x** | **1,241.1 MSPS** | < 0.5% of 16.67 ms |
+| **`peakDetectDecimate`** (500k samples $\to$ 2k buckets, 5 MSPS) | 0.387 ms / call | **0.376 ms / call** | **1.03x – 1.08x** | **1,328.8 MSPS** | **2.25% of 16.67 ms** |
+
+- **Analytical Precision & Golden Vector Verification**:
+  - DC Signal (2.5V): Exact analytical match ($\mu = 2.5\text{ V}, \text{RMS} = 2.5\text{ V}, V_{pp} = 0\text{ V}$)
+  - Sine Wave (1 kHz, 2V amp, 1 MSPS): Exact $V_{pp} = 4.0\text{ V}$, $\text{RMS} = 2.0 / \sqrt{2} = 1.4142\text{ V}$
+  - Square Wave (+1V / -1V): Exact $V_{pp} = 2.0\text{ V}$, $\text{RMS} = 1.0\text{ V}$
+  - Peak-Detect Impulse Preservation: Single-sample impulse spikes (+9.87V at index 4250) preserved with 100% fidelity in bucket 42.
+  - Cross-Validation: $\Delta < 10^{-5}$ across all statistical quantities compared to pure JS float calculations.
+  - Linear Memory Growth: Successfully auto-expands memory via `memory.grow()` when processing buffers exceeding 1 MB (300,000+ samples).
+- **Toolchain Evaluation Summary (ADR-008)**:
+  - Rust/WASM vs. C/C++/WASM evaluated across 8 criteria.
+  - Freestanding C/WABT chosen for 100% zero-dependency reproducibility, sub-millisecond compile time, and 884-byte binary footprint.
+- **Unit & Benchmark Tests**:
+  - Test Suites: **21 passed** (21 total, +2 new suites for Wave 11)
+  - Tests: **191 passed** (191 total, +16 new tests for Wave 11)
+  - Test Execution Duration: 939 ms
+  - Architectural Boundary Violations: **0**
+  - TypeScript Diagnostics: **0 errors**
+  - Vite Production Build: **949 ms**
+

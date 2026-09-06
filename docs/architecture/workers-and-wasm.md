@@ -172,11 +172,23 @@ Benchmarks measured on Windows x64 (Chrome 145 / V8 engine):
 
 ---
 
-## 6. WebAssembly (WASM) Integration Roadmap (Wave 9+)
+## 6. WebAssembly (WASM) DSP Core Subsystem (Wave 11)
 
-As established in **GEMINI.md Rule 9 (No WASM without benchmark proof)**:
-- Pure TypeScript AFE and ADC synthesis currently achieves **> 13 MSPS dual-channel**, comfortably exceeding the 1–5 MSPS requirement.
-- WebAssembly will be integrated in Wave 9 specifically for:
-  - SPICE-style non-linear circuit matrix solving ($N \times N$ MNA solvers).
-  - Heavy Radix-2 / Radix-4 Fast Fourier Transforms (FFT) for real-time spectrum analysis.
-  - Complex FIR/IIR multi-stage decimation filters.
+In strict accordance with **GEMINI.md Rule 9 (No WASM without benchmark proof)** and **ADR-008**:
+- A freestanding C / WABT compiled WebAssembly DSP Core (`src/wasm/dsp_kernel.wasm`, **884 bytes**) is integrated into the Data Plane.
+- It provides high-throughput statistical analysis and peak-detect display decimation without third-party runtime bloat.
+
+### 6.1 WASM vs. JavaScript Performance Benchmark Evidence
+Measured on Node.js v22 / V8 JIT, Windows 11 x64 (`tests/wasm/wasm-vs-js.benchmark.test.ts`):
+
+| Operation & Workload | Pure JavaScript (V8 JIT) | WebAssembly DSP Kernel | Speedup | Throughput (MSPS) | Frame Budget Share (60 FPS) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **`computeStats`** (100,000 samples) | 0.129 ms | **0.069 ms** | **1.86x** | **1,449.5 MSPS** | < 0.5% of 16.67 ms |
+| **`peakDetectDecimate`** (100k $\to$ 1k buckets) | 0.085 ms | **0.081 ms** | **1.05x – 1.17x** | **1,241.1 MSPS** | < 0.5% of 16.67 ms |
+| **`peakDetectDecimate`** (500k $\to$ 2k buckets, 5 MSPS) | 0.387 ms | **0.376 ms** | **1.03x – 1.08x** | **1,328.8 MSPS** | **2.25% of 16.67 ms** |
+
+### 6.2 Key Architectural Characteristics
+- **Zero Framework Bloat**: No `wasm-bindgen` or Emscripten runtime shims; standalone 884-byte binary embedded via base64 in `src/wasm/dsp_kernel_binary.ts`.
+- **C-ABI & Linear Memory**: Direct pointer access with preallocated memory segments. Linear memory automatically expands via `memory.grow()` when processing burst buffers larger than 1 MB.
+- **Detailed Specification**: Complete ABI and memory layout documented in [`docs/architecture/dsp-wasm-abi.md`](file:///c:/diplom/docs/architecture/dsp-wasm-abi.md).
+

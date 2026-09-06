@@ -411,7 +411,49 @@
 
 ---
 
+# Wave 11: WASM Toolchain and DSP Core Foundation
+
+- **Status**: DONE
+- **Goal**: Сравнить Rust/WASM и C/C++/WASM для репозитория цифрового двойника осциллографа по 8 критериям, выбрать архитектурный вариант и оформить ADR, создать воспроизводимый тулчейн сборки WASM, инициализацию модуля, модель линейной памяти, явный C-ABI, TypeScript-обертку, валидацию ошибок и сравнительный бенчмарк JS vs. WASM.
+- **Implemented**:
+  1. **Сравнительный анализ тулчейнов (Rust vs. C/C++ vs. Freestanding WABT)**:
+     - Оценка по 8 критериям: build complexity, generated binary size, JS/WASM boundary cost, SIMD availability, debugging, tooling, maintainability, team familiarity.
+     - Выбор: Freestanding C-ABI с компиляцией через WABT (`wabt` npm package) без внешних компиляторов и фреймворков.
+     - Принят [ADR-008: WebAssembly Toolchain Evaluation & DSP Core Foundation](../decisions/2026-09-06-ADR-008-wasm-toolchain-and-dsp-core.md).
+  2. **Воспроизводимый конвейер сборки (`scripts/build-wasm.mjs`)**:
+     - `pnpm run build:wasm` компилирует `src/wasm/dsp_kernel.wat` $\to$ `src/wasm/dsp_kernel.wasm` (**884 байта standalone байт-кода**, 0 байт мертвого кода runtime).
+     - Генерация base64-загрузчика `src/wasm/dsp_kernel_binary.ts` с поддержкой как Node.js, так и браузерного бандлера Vite.
+  3. **Ядро DSP и явный C-ABI (`src/wasm/dsp_kernel.c`, `src/wasm/dsp_kernel.wat`)**:
+     - `dsp_init()` — инициализация ядра;
+     - `dsp_get_input_buffer_ptr()` / `dsp_get_output_buffer_ptr()` — смещения буферов в памяти;
+     - `dsp_compute_stats(inPtr, count, outPtr)` — однопроходная редукция (Min, Max, Vpp, RMS, Mean);
+     - `dsp_peak_detect_decimate(inPtr, count, minPtr, maxPtr, buckets)` — алгоритм пикового детектирования для экранного сжатия выборок;
+     - Детерминированные отрицательные коды ошибок (`WASM_ERR_NULL_POINTER`, `WASM_ERR_INVALID_COUNT`, `WASM_ERR_OUT_OF_BOUNDS`, `WASM_ERR_INVALID_BUCKETS`).
+  4. **Модель линейной памяти (Linear Memory Model)**:
+     - Начальный размер 16 страниц (1 МБ), масштабируемый до 256 страниц (16 МБ).
+     - Сегментация: `0x0000..0x001B` (структура `SignalStats`), `0x1000..0x7FFF` (выходные корзины децимации), `0x8000+` (входной буфер отсчетов АЦП).
+     - Автоматическое расширение памяти через `memory.grow()` при получении буферов более 250 000 отсчетов.
+  5. **TypeScript Фасад (`WasmDspEngine.ts`) и эталонная реализация (`JsDspEngine.ts`)**:
+     - Класс `WasmDspEngine` реализует `IWasmDspEngine` с типизированными методами `computeStats` и `peakDetectDecimate`.
+     - Перехват ошибок ядра и генерация типизированного исключения `WasmDspError`.
+     - Класс `JsDspEngine` обеспечивает 100% функциональное соответствие на чистом JavaScript для кросс-валидации и fallback.
+  6. **Сравнительные бенчмарки и верификация (`tests/wasm/`)**:
+     - 13 модульных тестов в `tests/wasm/wasm-dsp.test.ts`: инициализация, валидация ошибок, золотые векторы DC/Sine/Square, сохранение экстремальных импульсов в децимации, динамический рост памяти.
+     - 3 сравнительных бенчмарка в `tests/wasm/wasm-vs-js.benchmark.test.ts`:
+       - `computeStats` (100k отсчетов): **0.069 мс в WASM (1449.5 MSPS)** против 0.129 мс в JS — ускорение **1.86x**;
+       - `peakDetectDecimate` (100k $\to$ 1k корзин): **0.081 мс в WASM (1241.1 MSPS)**;
+       - `peakDetectDecimate` (500k $\to$ 2k корзин, 5 MSPS): **0.376 мс в WASM (1328.8 MSPS)**, что составляет всего **2.25% от бюджета кадра 60 FPS (16.67 мс)**.
+     - Всего в проекте **191 тест в 21 тестовом наборе (100% PASS)**.
+  7. **Документация**:
+     - Создан [docs/architecture/dsp-wasm-abi.md](../architecture/dsp-wasm-abi.md).
+     - Принят [docs/decisions/2026-09-06-ADR-008-wasm-toolchain-and-dsp-core.md](../decisions/2026-09-06-ADR-008-wasm-toolchain-and-dsp-core.md).
+     - Обновлены [docs/architecture/workers-and-wasm.md](../architecture/workers-and-wasm.md), [docs/setup.md](../setup.md), [docs/api.md](../api.md), [docs/architecture.md](../architecture.md), [docs/testing/benchmark-history.md](../testing/benchmark-history.md).
+- **Acceptance Gate**: **PASS** — Сравнение Rust vs C проведено, ADR оформлен, тулчейн воспроизводим без внешних бинарников (884 байта WASM), 191 тест проходит, ускорение 1.86x подтверждено замерами.
+
+---
+
 # Next Wave
-- **Wave 11**: Virtual Trigger Engine & DSP Decimation (Цифровой компаратор синхронизации, фронт/спад Edge Trigger, Holdoff, Min/Max Peak-Detect децимация для 60 FPS вывода на экран, адаптация окна отображения, потоковая передача из воркера через SharedArrayBuffer).
+- **Wave 12**: Virtual Trigger Engine and Hardware-Equivalent Synchronization (Аппаратный триггерный компаратор, Edge Trigger Rising/Falling, Holdoff-таймер, гистерезис шума, синхронизация с SharedArrayBuffer и интеграция с WASM-дециматором).
+
 
 

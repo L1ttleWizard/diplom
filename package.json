@@ -10,6 +10,7 @@
     "test:domain": "vitest run tests/domain",
     "test:watch": "vitest",
     "check:boundaries": "node scripts/check-boundaries.mjs",
+    "build:wasm": "node scripts/build-wasm.mjs",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -17,7 +18,8 @@
     "@types/three": "^0.185.4",
     "typescript": "^5.7.3",
     "vite": "^6.2.0",
-    "vitest": "^3.0.7"
+    "vitest": "^3.0.7",
+    "wabt": "^1.0.39"
   },
   "dependencies": {
     "three": "^0.185.1"

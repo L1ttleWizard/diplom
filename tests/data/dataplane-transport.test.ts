@@ -13,7 +13,7 @@ describe('DataPlaneTransport & Transparent Fallback (Wave 10)', () => {
 
     const out1 = new Float32Array(3);
     const out2 = new Float32Array(3);
-    const read = transport.readAvailable(out1, out2);
+    const read = transport.readAvailable(out1, out2, out1.length);
 
     expect(read).toBe(3);
     expect(out1[0]).toBe(1.0);
@@ -34,7 +34,7 @@ describe('DataPlaneTransport & Transparent Fallback (Wave 10)', () => {
 
     const out1 = new Float32Array(3);
     const out2 = new Float32Array(3);
-    const read = transport.readAvailable(out1, out2);
+    const read = transport.readAvailable(out1, out2, out1.length);
 
     expect(read).toBe(3);
     expect(out1[0]).toBe(5.5);

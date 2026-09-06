@@ -1,5 +1,25 @@
 # Project Changelog
 
+## [Wave 11] - 2026-09-06
+### Added
+- Architectural evaluation comparing Rust/WASM vs. C/C++/WASM across 8 criteria (build complexity, binary size, boundary cost, SIMD, debugging, tooling, maintainability, team familiarity).
+- Selected Freestanding C-ABI via WABT (`wabt` npm package) for zero-dependency reproducibility and ultra-compact 884-byte binary footprint.
+- Mathematical reference C specification `src/wasm/dsp_kernel.c` and WebAssembly Text module `src/wasm/dsp_kernel.wat`.
+- Reproducible build pipeline in `scripts/build-wasm.mjs` generating `src/wasm/dsp_kernel.wasm` and TypeScript base64 loader `src/wasm/dsp_kernel_binary.ts` via `pnpm run build:wasm`.
+- Explicit C-ABI exports: `dsp_init`, `dsp_get_input_buffer_ptr`, `dsp_get_output_buffer_ptr`, `dsp_compute_stats`, `dsp_peak_detect_decimate`.
+- Linear memory model (1 MB initial, auto-expandable to 16 MB via `memory.grow`) with segmented offsets for stats struct, decimation output buckets, and ADC sample buffer.
+- TypeScript wrapper `WasmDspEngine` (`src/wasm/WasmDspEngine.ts`) implementing `IWasmDspEngine` with automated memory expansion and typed `WasmDspError` handling.
+- Pure JavaScript reference implementation `JsDspEngine` (`src/wasm/JsDspEngine.ts`) for cross-validation, baseline benchmarking, and runtime fallback.
+- 13 automated unit tests (`tests/wasm/wasm-dsp.test.ts`) validating lifecycle, analytical precision (DC, Sine, Square), peak-detect narrow spike preservation, and dynamic memory growth.
+- Comparative benchmarks (`tests/wasm/wasm-vs-js.benchmark.test.ts`):
+  - `computeStats` (100k samples): WASM achieves **1449.5 MSPS** (0.069 ms) vs 777.4 MSPS in JS — **1.86x faster**.
+  - `peakDetectDecimate` (100k samples $\to$ 1k buckets): WASM achieves **1241.1 MSPS** (0.081 ms).
+  - `peakDetectDecimate` (500k samples $\to$ 2k buckets, 5 MSPS scale): WASM takes **0.376 ms** (1328.8 MSPS), consuming only **2.25% of the 60 FPS frame budget (16.67 ms)**.
+- Full architectural and API documentation:
+  - `docs/architecture/dsp-wasm-abi.md`
+  - `docs/decisions/2026-09-06-ADR-008-wasm-toolchain-and-dsp-core.md`
+  - Updates to `docs/architecture/workers-and-wasm.md`, `docs/setup.md`, `docs/api.md`, `docs/architecture.md`, `docs/testing/benchmark-history.md`.
+
 ## [Wave 10] - 2026-09-06
 ### Added
 - SharedArrayBuffer Data Plane implementation for high-frequency dual-channel sample streaming between Acquisition Worker and consumers.

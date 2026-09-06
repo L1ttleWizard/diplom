@@ -396,4 +396,59 @@ export class DataPlaneTransport {
     options?: { forceFallback?: boolean; sampleRate?: number }
   ): IDataPlaneTransport;
 }
+
+---
+
+## 9. WebAssembly DSP Core API (`src/wasm/`)
+
+### 9.1 Types & Interfaces (`src/wasm/types.ts`)
+```typescript
+export interface SignalStats {
+  min: number;         // Minimum voltage (V)
+  max: number;         // Maximum voltage (V)
+  vpp: number;         // Peak-to-peak voltage Vpp = max - min (V)
+  rms: number;         // True RMS voltage (V)
+  mean: number;        // DC offset / mean voltage (V)
+  sampleCount: number; // Number of processed samples
+}
+
+export const WASM_ERR_OK = 0;
+export const WASM_ERR_NULL_POINTER = -1;
+export const WASM_ERR_INVALID_COUNT = -2;
+export const WASM_ERR_OUT_OF_BOUNDS = -3;
+export const WASM_ERR_INVALID_BUCKETS = -4;
+
+export interface IWasmDspEngine {
+  readonly isInitialized: boolean;
+  readonly memoryByteSize: number;
+  init(): Promise<void>;
+  computeStats(samples: Float32Array): SignalStats;
+  peakDetectDecimate(
+    samples: Float32Array,
+    bucketCount: number,
+    outMin?: Float32Array,
+    outMax?: Float32Array
+  ): { min: Float32Array; max: Float32Array };
+}
+```
+
+### 9.2 `WasmDspEngine` (`src/wasm/WasmDspEngine.ts`)
+```typescript
+export class WasmDspEngine implements IWasmDspEngine {
+  public get isInitialized(): boolean;
+  public get memoryByteSize(): number;
+  public init(): Promise<void>;
+  public computeStats(samples: Float32Array): SignalStats;
+  public peakDetectDecimate(
+    samples: Float32Array,
+    bucketCount: number,
+    outMin?: Float32Array,
+    outMax?: Float32Array
+  ): { min: Float32Array; max: Float32Array };
+}
+```
+
+### 9.3 `JsDspEngine` Reference Engine (`src/wasm/JsDspEngine.ts`)
+Zero-dependency Pure TypeScript implementation conforming to `IWasmDspEngine` for baseline benchmarking, unit test cross-validation, and non-WASM runtime fallback.
+
 ```

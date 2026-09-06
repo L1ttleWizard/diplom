@@ -1,11 +1,11 @@
 /**
- * WebAssembly Layer (Wave 5+)
+ * WebAssembly DSP Core (Wave 11)
  *
- * High-performance C/Rust compiled modules for decimation, FFT,
- * and high-frequency circuit simulation.
+ * High-performance C-ABI WebAssembly module for oscilloscope DSP,
+ * real-time statistical measurements, and peak-detect display decimation.
  */
 
-export interface IWasmModule {
-  readonly isLoaded: boolean;
-  init(): Promise<void>;
-}
+export * from './types';
+export * from './dsp_kernel_binary';
+export * from './WasmDspEngine';
+export * from './JsDspEngine';

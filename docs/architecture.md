@@ -69,6 +69,7 @@ The system enforces a strict barrier between the **Control Plane** and the **Dat
 - **Workers & WASM Subsystem**: Detailed in [workers-and-wasm.md](./architecture/workers-and-wasm.md).
 - **Data Plane & Ring Buffer**: Detailed in [data-plane.md](./architecture/data-plane.md).
 - **SharedArrayBuffer Data Plane**: Detailed in [shared-array-buffer.md](./architecture/shared-array-buffer.md).
+- **WebAssembly DSP Core ABI**: Detailed in [dsp-wasm-abi.md](./architecture/dsp-wasm-abi.md).
 - **Control-to-Display Pipeline**: Detailed in [control-to-display-flow.md](./architecture/control-to-display-flow.md).
 - **Test Bench & Verification**: Detailed in [test-bench.md](./testing/test-bench.md).
 - **Runtime Topology**: Detailed in [runtime-topology.md](./architecture/runtime-topology.md).

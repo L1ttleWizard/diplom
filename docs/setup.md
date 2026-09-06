@@ -29,6 +29,7 @@ pnpm install
 | `pnpm run preview` | Previews production build locally |
 | `pnpm test` | Runs all unit and integration test suites via Vitest |
 | `pnpm run test:watch` | Runs Vitest in interactive watch mode |
+| `pnpm run build:wasm` | Compiles WebAssembly DSP kernels (`.wat` -> `.wasm`) and generates binary TypeScript loader via WABT |
 | `pnpm run typecheck` | Validates TypeScript types across the entire codebase (`tsc --noEmit`) |
 | `pnpm run check:boundaries` | Enforces architectural boundary rules (no React/Three.js in domain) |
 
