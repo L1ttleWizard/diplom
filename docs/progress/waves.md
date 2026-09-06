@@ -193,6 +193,39 @@
 
 ---
 
+# Wave 6: Deterministic Signal Engine
+
+- **Status**: DONE
+- **Goal**: Создать reference signal generator с поддержкой 7 типов сигналов, детерминированными часами симуляции ($t = n / f_s$), нулевым накоплением дрейфа, набором golden vectors и тестами граничных условий.
+- **Implemented**:
+  1. **Детерминированные часы симуляции (`SimulationClock`)**:
+     - Физическое время симуляции строго вычисляется из целочисленного счетчика отсчетов: $t(n) = n / f_s$.
+     - Полное исключение системного wall-clock (`Date.now()`, `performance.now()`) из контура генерации сигнала.
+     - Нулевой дрейф: ровно $1.0000000000000000$ с за 1 000 000 отсчетов при 1 MSPS.
+     - Сохранение непрерывности симулированного времени при динамическом переключении $f_s$.
+  2. **Генератор опорных сигналов (`SignalGenerator`)**:
+     - Поддержка 7 типов форм волны: `SINE`, `SQUARE`, `TRIANGLE`, `SAW`, `PULSE`, `DC`, `NOISE`.
+     - Настраиваемые параметры: `amplitude` ($V_{pp}$), `frequency`, `offset`, `phase`, `dutyCycle` ($0..100\%$).
+     - Чистая математическая оценка $V(t)$ по непрерывной фазе с защитой от численного джиттера на границе цикла ($10^{-12}$ roundoff).
+     - Генератор воспроизводимого псевдослучайного шума (`DeterministicRandom` на базе Mulberry32 PRNG) с управляемым seed.
+  3. **Высокопроизводительная пакетная генерация (`generateBatch`)**:
+     - Поддержка внешнего буфера `Float32Array` с повторным использованием памяти (Zero allocations в цикле синтеза).
+     - Измеренная производительность: **30.33 MSPS** в одном потоке TypeScript (при целевом требовании 1–5 MSPS).
+  4. **Эталонные векторы (`GoldenVectors`)**:
+     - Золотые сценарии для всех 7 типов сигналов с контрольными точками амплитуды, периода, смещения и скважности.
+     - Вспомогательные методы анализа: `measureVpp`, `measurePeriod`, `measureDutyCycle`, `findZeroCrossings`.
+  5. **Граничные условия и валидация**:
+     - Корректная обработка $f = 0$ Гц (статический уровень фазы), предела Найквиста ($f = f_s / 2$), сверхнизких частот (0.1 Гц), крайних значений скважности ($0\%$, $100\%$), отрицательных и больших фаз ($-720^{\circ}$, $+1080^{\circ}$).
+     - Строгая валидация аргументов через `DomainValidationError`.
+     - 0 зависимостей от React, Three.js или DOM в `src/domain/simulation/`.
+  6. **Документация и тесты**:
+     - Создан архитектурный документ `docs/architecture/signal-engine.md`.
+     - Принят архитектурный рекорд `docs/decisions/2026-09-06-ADR-003-deterministic-signal-engine.md`.
+     - Добавлено 27 тестов (всего в проекте **99 тестов**, 100% PASS).
+- **Acceptance Gate**: **PASS** — 7 форм сигналов, аналитическая точность, 30.33 MSPS throughput, 0 утечек памяти, 99 тестов проходят.
+
+---
+
 # Next Wave
-- **Wave 6**: Virtual Signal Generation & Acquisition Engine (Data Plane, генерация 1–5 MSPS, кольцевые буферы, decimation, воркеры).
+- **Wave 7**: Virtual Acquisition Pipeline & Ring Buffers (Circular sample storage, Trigger detection engine, Decimation min/max/peak-detect, multi-channel acquisition).
 

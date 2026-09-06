@@ -133,4 +133,34 @@
   - Test Execution Duration: 545 ms
   - Production Bundle Build Duration: 779 ms
 
+---
+
+## Wave 6: Deterministic Signal Engine & High-Frequency Throughput
+
+- **Date**: 2026-09-06
+- **Environment**:
+  - Runtime: Node.js v24.14.1 (V8 engine) / Chrome DevTools V8
+  - OS: Windows x64
+  - Environment: Pure Node (zero DOM / zero Three.js)
+  - Virtual Sample Rate Target: 1.0 MSPS to 5.0 MSPS
+- **Throughput & Synthesis Benchmarks**:
+  - High-frequency Sine Synthesis (5 MSPS, 100 kHz, 3.3 Vpp):
+    - Target: $\ge 5.0$ MSPS
+    - Measured Throughput: **30.33 MSPS** (32.98 ms per 1,000,000 samples)
+    - Throughput Margin: **6.06x** higher than maximum required rate (5 MSPS)
+  - Steady-State Memory Allocation: **0 bytes/frame** (100% buffer reuse via preallocated `Float32Array`)
+  - Simulation Clock Drift over 1,000,000 steps: **0.0000000000000000 s** (exact integer sample count)
+- **Analytical & Golden Vector Verification**:
+  - Waveforms Verified: `SINE`, `SQUARE`, `PULSE` (25%), `TRIANGLE`, `SAW`, `DC`, `NOISE`
+  - $V_{pp}$ Accuracy: $< 0.01\%$ error against analytical target
+  - Period / Zero-Crossing Accuracy: $< 0.01\%$ error
+  - Duty Cycle Accuracy: Exact down to 0.1% sub-cycle resolution
+  - PRNG Reproducibility: Bit-for-bit identical sequences on identical seed (`Mulberry32`)
+- **Unit Tests Performance**:
+  - Test Suites: **11 passed** (11 total)
+  - Tests: **99 passed** (99 total, +27 new tests for Wave 6)
+  - Test Execution Duration: 671 ms
+  - Architectural Boundary Violations: **0**
+  - TypeScript Diagnostics: **0 errors**
+
 

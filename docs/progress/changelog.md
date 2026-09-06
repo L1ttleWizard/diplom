@@ -1,5 +1,19 @@
 # Project Changelog
 
+## [Wave 6] - 2026-09-06
+### Added
+- Deterministic simulation clock (`SimulationClock`) deriving time from integer sample counter: $t = n / f_s$ with zero cumulative drift over millions of samples.
+- Reference signal generator (`SignalGenerator`) supporting 7 waveforms: `SINE`, `SQUARE`, `TRIANGLE`, `SAW`, `PULSE`, `DC`, `NOISE`.
+- Pure analytical instantaneous voltage evaluation $V(t)$ with continuous phase offset and duty cycle support ($0..100\%$).
+- Phase boundary guard rounding normalized cycle position to $10^{-12}$ precision, eliminating edge roundoff jitter.
+- Seeded pseudo-random noise generator (`DeterministicRandom`) utilizing 32-bit Mulberry32 PRNG for reproducible test runs.
+- High-frequency batch synthesis (`generateBatch`) supporting preallocated `Float32Array` buffers with zero per-batch allocations and **30.33 MSPS** throughput.
+- Comprehensive Golden Vectors suite (`GoldenVectors`) with analytical waveform scenarios and measurement utilities (`measureVpp`, `measurePeriod`, `measureDutyCycle`, `findZeroCrossings`).
+- Boundary cases support: $f=0\text{ Hz}$ DC hold, Nyquist limit $f = f_s / 2$, sub-Hertz frequencies, extreme duty cycles, and phase wrap-around.
+- 27 automated unit tests for simulation clock, PRNG, signal generator, golden vectors, edge cases, and high-frequency throughput (99 repository tests passing).
+- Architectural documentation: `docs/architecture/signal-engine.md`.
+- Architectural Decision Record: `docs/decisions/2026-09-06-ADR-003-deterministic-signal-engine.md`.
+
 ## [Wave 5] - 2026-09-06
 ### Added
 - Cached static graticule layer (`StaticGridLayer`) with 10x8 divisions, 0.2 div minor sub-ticks, center crosshairs, outer bezel frame with corner brackets, perimeter division markers, and static labels.

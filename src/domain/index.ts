@@ -21,3 +21,11 @@ export * from './entities/Oscilloscope';
 // Commands & Events
 export * from './commands/commands';
 export * from './events/events';
+
+// Simulation & Signal Engine (Wave 6)
+export * from './simulation/types';
+export * from './simulation/SimulationClock';
+export * from './simulation/DeterministicRandom';
+export * from './simulation/SignalGenerator';
+export * from './simulation/GoldenVectors';
+

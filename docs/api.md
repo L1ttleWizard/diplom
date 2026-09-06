@@ -57,3 +57,64 @@ export class OscilloscopeService {
   getEventBus(): EventBus;
 }
 ```
+
+---
+
+## 4. Signal Engine & Simulation Clock API (`src/domain/simulation/`)
+
+### 4.1 `SimulationClock`
+```typescript
+export class SimulationClock {
+  constructor(initialSampleRate: number = 1_000_000, initialSampleIndex: number = 0);
+
+  // Time queries
+  public get sampleIndex(): number;
+  public get sampleRate(): number;
+  public get simulationTime(): number; // sampleIndex / sampleRate
+  public get timeStep(): number;       // 1 / sampleRate
+
+  // Clock progression (Zero wall-clock)
+  public step(): number;
+  public advance(sampleCount: number): number;
+  public timeAt(sampleIndex: number): number;
+  public setTime(targetTimeSeconds: number): void;
+  public setSampleRate(newRate: number): void;
+  public reset(): void;
+  public snapshot(): ClockState;
+}
+```
+
+### 4.2 `SignalGenerator`
+```typescript
+export type WaveformType = 'SINE' | 'SQUARE' | 'TRIANGLE' | 'SAW' | 'PULSE' | 'DC' | 'NOISE';
+
+export interface SignalGeneratorOptions {
+  waveform?: WaveformType; // Default 'SINE'
+  frequency?: number;     // Default 1000 Hz
+  amplitude?: number;     // Default 2.0 Vpp
+  offset?: number;        // Default 0.0 V
+  phase?: number;         // Default 0.0 deg
+  dutyCycle?: number;     // Default 50.0%
+  noiseSeed?: number;     // Default 1337
+}
+
+export class SignalGenerator {
+  constructor(options?: SignalGeneratorOptions);
+
+  // Configuration
+  public setWaveform(waveform: WaveformType): void;
+  public setFrequency(freq: number): void;
+  public setAmplitude(amp: number): void;
+  public setOffset(offset: number): void;
+  public setPhase(phaseDeg: number): void;
+  public setDutyCycle(duty: number): void;
+
+  // Synthesis methods
+  public sampleAt(t: number): number;
+  public generateBatch(
+    clock: SimulationClock,
+    count: number,
+    outputBuffer?: Float32Array
+  ): Float32Array;
+}
+```

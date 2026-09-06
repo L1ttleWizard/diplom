@@ -64,4 +64,5 @@ The system enforces a strict barrier between the **Control Plane** and the **Dat
 - **3D Rendering Runtime**: Detailed in [3d-rendering.md](./architecture/3d-rendering.md).
 - **Oscilloscope Interaction**: Detailed in [3d-oscilloscope-interaction.md](./architecture/3d-oscilloscope-interaction.md).
 - **Virtual Display Subsystem**: Detailed in [oscilloscope-display.md](./architecture/oscilloscope-display.md).
+- **Deterministic Signal Engine**: Detailed in [signal-engine.md](./architecture/signal-engine.md).
 - **Runtime Topology**: Detailed in [runtime-topology.md](./architecture/runtime-topology.md).
