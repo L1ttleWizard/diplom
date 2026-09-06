@@ -352,3 +352,48 @@
   - TypeScript Diagnostics: **0 errors**
   - Vite Production Build: **949 ms**
 
+---
+
+## Wave 12: DSP Reference Algorithms & Mathematical Oracle Verification
+
+- **Date**: 2026-09-06
+- **Environment**:
+  - OS: Windows 11 x64
+  - Runtime: Node.js v22.18.0 (V8 JIT)
+  - Test Framework: Vitest 3.2.7
+  - Implementation Layer: Pure TypeScript (`src/dsp/`)
+- **Mathematical Oracle & Golden Vector Verification**:
+  - **Mean ($\mu$) & DC Linear Accuracy**: $\Delta < 10^{-6}$ on constant DC and symmetric AC signals.
+  - **Min / Max / Peak-to-Peak**: Exact IEEE-754 precision ($\Delta = 0$).
+  - **True RMS ($V_{rms}$)**:
+    - Pure Sine ($A = 2.0\text{ V}$): $V_{rms} = A / \sqrt{2} = 1.414214\text{ V}$ ($\Delta < 10^{-4}$).
+    - Square Wave ($A = 1.5\text{ V}$): $V_{rms} = 1.500000\text{ V}$ ($\Delta < 10^{-6}$).
+    - Symmetrical Triangle ($A = 3.0\text{ V}$): $V_{rms} = A / \sqrt{3} = 1.732051\text{ V}$ ($\Delta < 10^{-3}$).
+    - Composite DC + AC: $V_{rms} = \sqrt{V_{dc}^2 + V_{ac,rms}^2}$ exact match.
+  - **Sub-sample Zero Crossing Interpolation**:
+    - Linear ramp interpolation error: **0.000000 sample** (exact algebraic fractional root).
+    - Analytical Sine crossing timestamps error: $< 0.01$ sample.
+    - Hysteresis band noise rejection: $100\%$ suppression of spurious micro-crossings around zero threshold.
+    - Tangential touch distinction: 0 false crossings when touching threshold without sign reversal.
+  - **Frequency & Period Estimation**:
+    - 1 kHz Sine at 1 MSPS: measured $1000.0\text{ Hz}$, period $1.000\text{ ms}$, error $< 0.05\%$, confidence $> 0.95$.
+    - Non-integer frequency ($f = 1234.56\text{ Hz}$): error $< 0.1\%$ via sub-sample crossing interpolation.
+    - High-frequency 5 MSPS rate ($f = 100\text{ kHz}$): period $10.00\ \mu\text{s}$ exact match.
+    - Asymmetric Duty Cycle: 25% and 75% rectangular pulses measured within $\pm 0.02$.
+  - **FIR Filter Invariants**:
+    - Impulse response: $h[n] = b[n]$ exact match.
+    - Step response: converges exactly to DC gain $H(0) = \sum b[k]$.
+    - Windowed-Sinc Low-Pass: passband attenuation $< 0.05\text{ dB}$, stopband attenuation $> 30\text{ dB}$ at $f = 7 f_c$.
+    - Streaming block continuity: zero output deviation when splitting inputs across arbitrary chunk sizes.
+  - **IIR Biquad (Direct Form II Transposed) Invariants**:
+    - 2nd-Order Butterworth Low-Pass: DC gain $H(0) = 1.000000$ exact; $-3.0103\text{ dB}$ ($1/\sqrt{2} \approx 0.7071$) at cutoff frequency $f_c$; stopband roll-off $-40\text{ dB/decade}$.
+    - Jury stability criterion: $100\%$ detection and rejection of unstable poles outside unit circle ($|p| \ge 1$).
+- **Unit & Benchmark Tests**:
+  - Test Suites: **26 passed** (26 total, +5 new suites for Wave 12)
+  - Tests: **233 passed** (233 total, +42 new tests for Wave 12)
+  - Test Execution Duration: 1.08 s
+  - Architectural Boundary Violations: **0**
+  - TypeScript Diagnostics: **0 errors**
+  - Vite Production Build: **879 ms**
+
+

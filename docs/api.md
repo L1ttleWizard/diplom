@@ -451,4 +451,99 @@ export class WasmDspEngine implements IWasmDspEngine {
 ### 9.3 `JsDspEngine` Reference Engine (`src/wasm/JsDspEngine.ts`)
 Zero-dependency Pure TypeScript implementation conforming to `IWasmDspEngine` for baseline benchmarking, unit test cross-validation, and non-WASM runtime fallback.
 
+---
+
+## 10. DSP Reference Algorithms API (`src/dsp/`)
+
+### 10.1 Statistical Reduction Functions (`src/dsp/statistics.ts`)
+```typescript
+export function computeMean(samples: Float32Array | number[]): number;
+export function computeMin(samples: Float32Array | number[]): number;
+export function computeMax(samples: Float32Array | number[]): number;
+export function computePeakToPeak(samples: Float32Array | number[]): number;
+export function computeRms(samples: Float32Array | number[]): number;
+export function computeSignalStats(samples: Float32Array | number[]): SignalStats;
 ```
+
+### 10.2 Zero Crossing Detection (`src/dsp/zeroCrossing.ts`)
+```typescript
+export type ZeroCrossingDirection = 'RISING' | 'FALLING' | 'BOTH';
+
+export interface ZeroCrossingOptions {
+  threshold?: number;           // Default: 0.0 V
+  hysteresis?: number;          // Default: 0.0 V (Schmitt trigger band)
+  direction?: ZeroCrossingDirection; // Default: 'BOTH'
+}
+
+export interface ZeroCrossing {
+  index: number;                // Sub-sample linearly interpolated fractional index
+  direction: 'RISING' | 'FALLING';
+  slope: number;                // Slope at crossing (V/sample)
+}
+
+export function findZeroCrossings(
+  samples: Float32Array | number[],
+  options?: ZeroCrossingOptions
+): ZeroCrossing[];
+```
+
+### 10.3 Fundamental Frequency & Period Estimation (`src/dsp/frequency.ts`)
+```typescript
+export interface FrequencyEstimationResult {
+  frequency: number;            // Estimated fundamental frequency (Hz)
+  period: number;               // Estimated period (s)
+  cycleCount: number;           // Number of full cycles analyzed
+  dutyCycle: number;            // Measured positive duty cycle (0.0 to 1.0)
+  confidence: number;           // Confidence factor (0.0 to 1.0)
+  valid: boolean;               // True if at least 1 full cycle is identified
+}
+
+export function estimateFrequency(
+  samples: Float32Array | number[],
+  sampleRate: number,
+  options?: FrequencyOptions
+): FrequencyEstimationResult;
+```
+
+### 10.4 FIR Filtering (`src/dsp/fir.ts`)
+```typescript
+export interface IFirFilter {
+  readonly taps: number;
+  readonly coefficients: Float64Array;
+  reset(): void;
+  processSample(sample: number): number;
+  processBlock(samples: Float32Array, output?: Float32Array): Float32Array;
+  filterBatch(samples: Float32Array): Float32Array;
+}
+
+export class FirFilter implements IFirFilter {
+  constructor(coefficients: Float64Array | number[]);
+  public static createMovingAverage(taps: number): FirFilter;
+  public static createLowPass(
+    sampleRate: number,
+    cutoffFreq: number,
+    taps?: number,
+    window?: 'HANN' | 'HAMMING' | 'RECT'
+  ): FirFilter;
+}
+```
+
+### 10.5 IIR Biquad Filtering (`src/dsp/iir.ts`)
+```typescript
+export interface BiquadCoefficients {
+  b0: number; b1: number; b2: number;
+  a0: number; a1: number; a2: number;
+}
+
+export class IirBiquadFilter implements IIirFilter {
+  constructor(coeffs: BiquadCoefficients, validateStability?: boolean);
+  public static checkStability(a1: number, a2: number): boolean;
+  public static createButterworthLowPass(sampleRate: number, cutoffFreq: number, Q?: number): IirBiquadFilter;
+  public static createFirstOrderLowPass(sampleRate: number, cutoffFreq: number): IirBiquadFilter;
+  public processSample(x: number): number;
+  public processBlock(samples: Float32Array, output?: Float32Array): Float32Array;
+  public filterBatch(samples: Float32Array): Float32Array;
+  public reset(): void;
+}
+```
+

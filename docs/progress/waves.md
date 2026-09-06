@@ -452,8 +452,52 @@
 
 ---
 
+# Wave 12: DSP Reference Algorithms
+
+- **Status**: DONE
+- **Goal**: Создать независимую reference/oracle implementation алгоритмов цифровой обработки сигналов (mean, min, max, RMS, peak-to-peak, zero crossing, frequency estimation, FIR, IIR) на TypeScript/JavaScript с математическими формулами, эталонными векторами (golden vectors), строгими численными допусками и обработкой граничных случаев.
+- **Implemented**:
+  1. **Статистические редукции (`src/dsp/statistics.ts`)**:
+     - Аналитические функции `computeMean`, `computeMin`, `computeMax`, `computePeakToPeak`, `computeRms`, `computeSignalStats`.
+     - Накопление сумм в 64-битных регистрах `Float64` для исключения потери точности на миллионных массивах отсчетов.
+     - Точность $< 10^{-6}$ для среднего и размаха, $< 10^{-4}$ для RMS.
+  2. **Детектор пересечения нуля (`src/dsp/zeroCrossing.ts`)**:
+     - Субдискретная линейная интерполяция $t_{cross} = (i - 1) + \frac{V_{th} - x[i-1]}{x[i] - x[i-1]}$ с погрешностью $< 0.01$ отсчета на синусоидальном сигнале.
+     - Петля гистерезиса триггера Шмитта для 100% подавления ложных срабатываний на высокочастотных шумах.
+     - Алгоритмическое различение касания уровня без смены знака (0 false crossings) от истинного перехода.
+  3. **Оценка фундаментальной частоты и периода (`src/dsp/frequency.ts`)**:
+     - Метод многопериодного усреднения по интерполированным отсчетам: $f = \frac{K \cdot f_s}{t_{M-1} - t_0}$.
+     - Погрешность измерения частоты $< 0.05\%$ на целом числе циклов, $< 0.1\%$ на дробных отношениях частот ($f = 1234.56\text{ Hz}$).
+     - Расчет метрики достоверности (confidence metric) на основе дисперсии длительностей периодов.
+     - Оценка скважности импульсных сигналов (duty cycle) с подтверждением на прямоугольных импульсах 25% и 75%.
+  4. **Фильтр с конечной импульсной характеристикой (`src/dsp/fir.ts`)**:
+     - Прямая форма свертки: $y[n] = \sum b[k] x[n-k]$ с непрерывным сохранением линии задержки в потоковом режиме (`processBlock`) и пакетной обработкой (`filterBatch`).
+     - Фабрика скользящего среднего `createMovingAverage(taps)`.
+     - Фабрика фильтра нижних частот оконного метода `createLowPass(fs, fc, taps, window)` с окнами Ханна и Хэмминга, единичным усилением на DC ($H(0) = 1.0$) и подавлением stopband $> 30\text{ dB}$.
+  5. **Фильтр с бесконечной импульсной характеристикой (`src/dsp/iir.ts`)**:
+     - Транспонированная прямая форма II (Direct Form II Transposed Biquad), минимизирующая динамический диапазон внутренних переменных состояния.
+     - Проверка устойчивости полюсов по критерию Джури ($|a_2| < 1$, $1 + a_1 + a_2 > 0$, $1 - a_1 + a_2 > 0$) с перехватом `DspError(DspErrorCode.UNSTABLE_FILTER)`.
+     - Синтез 2-го порядка фильтра Баттерворта через билинейное преобразование с pre-warping: точное ослабление $-3.0103\text{ dB}$ на частоте среза $f_c$ и спад $-40\text{ dB/декаду}$ в полосе задерживания.
+     - Синтез эквивалента RC-фильтра 1-го порядка.
+  6. **Эталонные тесты и верификация (`tests/dsp/`)**:
+     - 5 новых тестовых наборов, 42 модульных теста:
+       - `statistics.test.ts` (8 тестов)
+       - `zeroCrossing.test.ts` (8 тестов)
+       - `frequency.test.ts` (8 тестов)
+       - `fir.test.ts` (9 тестов)
+       - `iir.test.ts` (9 тестов)
+     - Всего в проекте **233 теста в 26 тестовых наборах (100% PASS)**.
+  7. **Документация**:
+     - Создан [docs/architecture/dsp-reference-algorithms.md](../architecture/dsp-reference-algorithms.md).
+     - Принят [docs/decisions/2026-09-06-ADR-009-dsp-reference-algorithms.md](../decisions/2026-09-06-ADR-009-dsp-reference-algorithms.md).
+     - Обновлены [docs/architecture.md](../architecture.md), [docs/api.md](../api.md), [docs/testing/benchmark-history.md](../testing/benchmark-history.md).
+- **Acceptance Gate**: **PASS** — Все 9 алгоритмов реализованы, математические формулы и допуски задокументированы, golden vectors верифицированы, 233 теста проходят без ошибок.
+
+---
+
 # Next Wave
-- **Wave 12**: Virtual Trigger Engine and Hardware-Equivalent Synchronization (Аппаратный триггерный компаратор, Edge Trigger Rising/Falling, Holdoff-таймер, гистерезис шума, синхронизация с SharedArrayBuffer и интеграция с WASM-дециматором).
+- **Wave 13**: Virtual Trigger Engine and Hardware-Equivalent Synchronization (Аппаратный триггерный компаратор, Edge Trigger Rising/Falling, Holdoff-таймер, гистерезис шума, синхронизация с SharedArrayBuffer и интеграция с WASM-дециматором).
+
 
 
 

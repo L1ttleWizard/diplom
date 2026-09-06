@@ -1,5 +1,20 @@
 # Project Changelog
 
+## [Wave 12] - 2026-09-06
+### Added
+- Independent, high-precision reference DSP library (`src/dsp/`) serving as the mathematical oracle for measurement and filtering routines.
+- Statistical metrics (`src/dsp/statistics.ts`): `computeMean`, `computeMin`, `computeMax`, `computePeakToPeak`, `computeRms`, and consolidated single-pass `computeSignalStats`.
+- Float64 double-precision accumulators preventing precision loss and catastrophic cancellation during long summations.
+- Zero Crossing Detector (`src/dsp/zeroCrossing.ts`) with sub-sample linear interpolation ($t_{cross} = (i - 1) + \frac{V_{th} - x[i-1]}{x[i] - x[i-1]}$), Schmitt-trigger hysteresis noise band, and tangential touch discrimination.
+- Fundamental Frequency & Period Estimator (`src/dsp/frequency.ts`) using multi-cycle crossing spans, period variance confidence metrics, and duty cycle measurement for asymmetric rectangular pulses.
+- FIR Filter (`src/dsp/fir.ts`) with direct convolution difference equation, state preservation across streaming blocks, batch mode, and factories for Moving Average and Windowed-Sinc (Hann, Hamming, Rectangular) Low-Pass filters.
+- IIR Biquad Filter (`src/dsp/iir.ts`) in Direct Form II Transposed structure, Jury stability criterion validation ($|a_2| < 1$, $1 + a_1 + a_2 > 0$, $1 - a_1 + a_2 > 0$), and Bilinear Transform with frequency pre-warping for Butterworth 2nd-order ($-3.01\text{ dB}$ at $f_c$, $-40\text{ dB/dec}$ roll-off) and 1st-order RC filters.
+- 42 new unit tests across 5 test suites (`tests/dsp/`) testing analytical golden vectors (DC, Sine, Square, Triangle, mixed signals), edge cases (empty arrays, single samples, DC hold, tangential touch), and numerical tolerances (233 total repository tests passing).
+- Full architectural and ADR documentation:
+  - `docs/architecture/dsp-reference-algorithms.md`
+  - `docs/decisions/2026-09-06-ADR-009-dsp-reference-algorithms.md`
+  - Updates to `docs/architecture.md`, `docs/api.md`, `docs/testing/benchmark-history.md`, `docs/progress/waves.md`.
+
 ## [Wave 11] - 2026-09-06
 ### Added
 - Architectural evaluation comparing Rust/WASM vs. C/C++/WASM across 8 criteria (build complexity, binary size, boundary cost, SIMD, debugging, tooling, maintainability, team familiarity).
