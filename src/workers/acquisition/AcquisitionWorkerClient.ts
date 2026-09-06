@@ -6,9 +6,13 @@ import {
   WorkerInitPayload,
   WorkerConfigurePayload,
   WorkerBatchPayload,
-  WorkerErrorPayload
+  WorkerErrorPayload,
+  WorkerInitializedPayload
 } from './protocol';
 import { AcquisitionWorkerCore } from './AcquisitionWorkerCore';
+import { SharedMemoryCapability } from '../../data/shared/SharedMemoryCapability';
+import { SharedRingBufferLayout } from '../../data/shared/SharedRingBufferLayout';
+import { SharedRingBufferConsumer } from '../../data/shared/SharedRingBufferConsumer';
 
 export interface IWorkerPort {
   postMessage(message: unknown, transfer?: Transferable[]): void;
@@ -51,11 +55,18 @@ export type BatchCallback = (batch: WorkerBatchPayload) => void;
 export type StateCallback = (state: WorkerState) => void;
 export type ErrorCallback = (error: WorkerErrorPayload) => void;
 
+export interface WorkerStartupOptions {
+  enableSharedMemory?: boolean;
+  sharedCapacity?: number;
+  timeoutMs?: number;
+}
+
 /**
  * Acquisition Worker Client (Main Thread Facade).
  *
  * Manages Web Worker lifecycle: startup, continuous streaming, configuration,
  * clean shutdown, error handling, and state resynchronization on restart.
+ * Supports zero-copy SharedArrayBuffer data plane with transparent message-passing fallback.
  */
 export class AcquisitionWorkerClient {
   private _port: IWorkerPort | null = null;
@@ -63,6 +74,9 @@ export class AcquisitionWorkerClient {
   private _state: WorkerState = 'UNINITIALIZED';
   private _cachedConfig: WorkerInitPayload = {};
   private _wasRunningBeforeRestart: boolean = false;
+  private _dataPlaneMode: 'SHARED_ARRAY_BUFFER' | 'MESSAGE_PASSING' = 'MESSAGE_PASSING';
+  private _sharedBuffer: SharedArrayBuffer | null = null;
+  private _sharedConsumer: SharedRingBufferConsumer | null = null;
 
   // Listeners
   private _batchListeners: Set<BatchCallback> = new Set();
@@ -94,6 +108,18 @@ export class AcquisitionWorkerClient {
     return this._state;
   }
 
+  public get dataPlaneMode(): 'SHARED_ARRAY_BUFFER' | 'MESSAGE_PASSING' {
+    return this._dataPlaneMode;
+  }
+
+  public get sharedBuffer(): SharedArrayBuffer | null {
+    return this._sharedBuffer;
+  }
+
+  public get sharedConsumer(): SharedRingBufferConsumer | null {
+    return this._sharedConsumer;
+  }
+
   public get totalBatches(): number {
     return this._totalBatches;
   }
@@ -120,20 +146,47 @@ export class AcquisitionWorkerClient {
 
   /**
    * Initializes the worker and waits for the INITIALIZED handshake.
+   * Dynamically negotiates SharedArrayBuffer or fallback mode based on capability detection.
    */
-  public async startup(config: WorkerInitPayload = {}, timeoutMs: number = 3000): Promise<void> {
+  public async startup(
+    config: WorkerInitPayload = {},
+    options?: WorkerStartupOptions | number
+  ): Promise<void> {
     if (this._port) {
       this.shutdown();
     }
 
+    const opts: WorkerStartupOptions =
+      typeof options === 'number' ? { timeoutMs: options } : (options ?? {});
+    const timeout = opts.timeoutMs ?? 3000;
+
     this._cachedConfig = { ...config };
+
+    // Capability check: allocate SharedArrayBuffer if supported and requested
+    const useSharedMemory =
+      opts.enableSharedMemory !== false && SharedMemoryCapability.isSupported();
+
+    if (useSharedMemory && !this._cachedConfig.sharedBuffer) {
+      const cap = opts.sharedCapacity ?? 65_536;
+      const sRate = typeof config.sampleRate === 'number' ? config.sampleRate : 1_000_000;
+      this._sharedBuffer = SharedRingBufferLayout.createBuffer(cap, sRate);
+      this._sharedConsumer = new SharedRingBufferConsumer(this._sharedBuffer);
+      this._cachedConfig.sharedBuffer = this._sharedBuffer;
+    } else if (this._cachedConfig.sharedBuffer) {
+      this._sharedBuffer = this._cachedConfig.sharedBuffer;
+      this._sharedConsumer = new SharedRingBufferConsumer(this._sharedBuffer);
+    } else {
+      this._sharedBuffer = null;
+      this._sharedConsumer = null;
+    }
+
     this._port = this._portFactory();
     this.setupPortListeners(this._port);
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error(`Worker startup timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
+        reject(new Error(`Worker startup timed out after ${timeout}ms`));
+      }, timeout);
 
       const initId = `init-${Date.now()}`;
 
@@ -142,6 +195,9 @@ export class AcquisitionWorkerClient {
         if (msg && msg.type === 'INITIALIZED' && msg.id === initId) {
           clearTimeout(timer);
           this._state = 'IDLE';
+          const p = msg.payload as WorkerInitializedPayload;
+          this._dataPlaneMode =
+            p.dataPlaneMode ?? (this._sharedBuffer ? 'SHARED_ARRAY_BUFFER' : 'MESSAGE_PASSING');
           resolve();
         } else if (msg && msg.type === 'ERROR') {
           clearTimeout(timer);
@@ -230,6 +286,9 @@ export class AcquisitionWorkerClient {
       // Ignore termination errors
     } finally {
       this._port = null;
+      this._sharedBuffer = null;
+      this._sharedConsumer = null;
+      this._dataPlaneMode = 'MESSAGE_PASSING';
       this._state = 'UNINITIALIZED';
     }
   }

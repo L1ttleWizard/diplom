@@ -9,6 +9,7 @@
 export * from './types';
 export * from './BoundedRingBuffer';
 export * from './SampleRingBuffer';
+export * from './shared';
 
 export interface ISampleRingBuffer {
   readonly capacity: number;

@@ -1,6 +1,7 @@
 import { Oscilloscope3DRuntime } from './rendering/core/Oscilloscope3DRuntime';
 import { PerformanceTier } from './rendering/types';
 import { AcquisitionWorkerClient } from './workers';
+import { SharedMemoryCapability } from './data/shared/SharedMemoryCapability';
 
 document.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('render-canvas') as HTMLCanvasElement;
@@ -152,6 +153,15 @@ document.addEventListener('DOMContentLoaded', () => {
     await workerClient.restart();
   });
 
+  // Wave 10 HUD Elements
+  const valTransportMode = document.getElementById('val-transport-mode');
+  const valCoopStatus = document.getElementById('val-coop-status');
+  const capability = SharedMemoryCapability.check();
+  if (valCoopStatus) {
+    valCoopStatus.textContent = capability.crossOriginIsolated ? 'ISOLATED' : 'NON-ISOLATED';
+    valCoopStatus.style.color = capability.crossOriginIsolated ? '#3fb950' : '#d29922';
+  }
+
   // Metrics HUD elements
   const valFps = document.getElementById('val-fps');
   const valFrameTime = document.getElementById('val-frame-time');
@@ -174,6 +184,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (valDrawCalls) valDrawCalls.textContent = `${metrics.drawCalls}`;
     if (valTriangles) valTriangles.textContent = `${metrics.triangles.toLocaleString()}`;
+
+    if (valTransportMode) {
+      if (workerClient.dataPlaneMode === 'SHARED_ARRAY_BUFFER') {
+        valTransportMode.textContent = 'SharedArrayBuffer (Zero-GC)';
+        valTransportMode.style.color = '#3fb950';
+      } else {
+        valTransportMode.textContent = 'Message-Passing (Fallback)';
+        valTransportMode.style.color = '#58a6ff';
+      }
+    }
 
     if (valWorkerMsps) {
       const msps = workerClient.rollingThroughputMsps;

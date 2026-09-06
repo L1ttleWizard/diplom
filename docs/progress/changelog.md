@@ -1,5 +1,20 @@
 # Project Changelog
 
+## [Wave 10] - 2026-09-06
+### Added
+- SharedArrayBuffer Data Plane implementation for high-frequency dual-channel sample streaming between Acquisition Worker and consumers.
+- Cross-Origin Isolation configuration in `vite.config.ts` (`Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`).
+- Runtime capability detector `SharedMemoryCapability` (`src/data/shared/SharedMemoryCapability.ts`) verifying SAB, Atomics, cross-origin isolation, and safe allocation.
+- Binary memory layout `SharedRingBufferLayout` (`src/data/shared/SharedRingBufferLayout.ts`) with 128-byte control header (magic, version, capacity, monotonic indices, sequence, flags) and 128-byte aligned CH1/CH2 Float32Array regions.
+- SPSC lock-free writer `SharedRingBufferProducer` (`src/data/shared/SharedRingBufferProducer.ts`) using Store-Release Atomics fences.
+- Non-blocking reader `SharedRingBufferConsumer` (`src/data/shared/SharedRingBufferConsumer.ts`) using Load-Acquire Atomics fences, strictly avoiding `Atomics.wait` on the main browser thread.
+- Unified transport facade `DataPlaneTransport` (`src/data/shared/DataPlaneTransport.ts`) supporting transparent fallback to `MessagePassingTransport` when cross-origin isolation is not configured.
+- Acquisition Worker integration: writes samples directly to SAB and delivers lightweight metadata notifications with 0 transferred buffers.
+- HUD UI indicators in `index.html` and `src/main.ts`: Transport Mode (SharedArrayBuffer vs Fallback) and Cross-Origin isolation status.
+- 20 new tests across 4 suites: capability detection, SPSC streaming, wrap-around, overflow/underrun, 10M soak test (>80 MSPS), fallback equivalence, and comparative postMessage vs SAB benchmark (175 total repository tests passing).
+- Measured performance gains: 100% elimination of GC allocation churn (from 7.63 MB/M down to 0 bytes), >14x higher throughput (up to 207 MSPS), and stable 60 FPS in live browser.
+- Documentation: `docs/architecture/shared-array-buffer.md`, `docs/decisions/2026-09-06-ADR-007-shared-array-buffer-data-plane.md`.
+
 ## [Test Bench Milestone] - 2026-09-06
 ### Fixed
 - Fixed static diagnostic waveform stub in `DynamicDisplayLayer` that ignored domain state and 3D knob inputs.

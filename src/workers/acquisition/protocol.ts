@@ -11,6 +11,7 @@ export interface WorkerInitPayload {
   sampleRate?: LogicalSampleRate | number;
   batchSize?: number;
   intervalMs?: number;
+  sharedBuffer?: SharedArrayBuffer; // WAVE 10: SharedArrayBuffer Data Plane
   ch1?: {
     waveform?: WaveformType;
     frequency?: number;
@@ -74,6 +75,7 @@ export interface WorkerInitializedPayload {
   sampleRate: number;
   batchSize: number;
   workerTimestamp: number;
+  dataPlaneMode: 'SHARED_ARRAY_BUFFER' | 'MESSAGE_PASSING';
 }
 
 export interface WorkerBatchPayload {
@@ -84,10 +86,11 @@ export interface WorkerBatchPayload {
   simulationTimeEnd: number;
   ch1Clipped: boolean;
   ch2Clipped: boolean;
-  ch1Samples: Float32Array; // Transferable
-  ch2Samples: Float32Array; // Transferable
+  ch1Samples?: Float32Array; // Transferable when in MESSAGE_PASSING mode
+  ch2Samples?: Float32Array; // Transferable when in MESSAGE_PASSING mode
   producedAt: number;
   generationDurationMs: number;
+  mode?: 'SHARED_ARRAY_BUFFER' | 'MESSAGE_PASSING';
 }
 
 export interface WorkerConfiguredPayload {

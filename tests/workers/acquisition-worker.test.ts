@@ -138,16 +138,18 @@ describe('Acquisition Worker (Wave 8)', () => {
       const p = batchEvent!.payload as WorkerBatchPayload;
       expect(p.sampleCount).toBe(1000);
       expect(p.batchIndex).toBe(0);
-      expect(p.ch1Samples.length).toBe(1000);
-      expect(p.ch2Samples.length).toBe(1000);
+      expect(p.ch1Samples).toBeDefined();
+      expect(p.ch2Samples).toBeDefined();
+      expect(p.ch1Samples!.length).toBe(1000);
+      expect(p.ch2Samples!.length).toBe(1000);
       expect(core.clock.sampleIndex).toBe(1000);
 
       // Verify buffers were passed into transferable list
       expect(transferredBuffers.length).toBeGreaterThan(0);
       const latestTransfer = transferredBuffers[transferredBuffers.length - 1];
       expect(latestTransfer).toHaveLength(2);
-      expect(latestTransfer[0]).toBe(p.ch1Samples.buffer);
-      expect(latestTransfer[1]).toBe(p.ch2Samples.buffer);
+      expect(latestTransfer[0]).toBe(p.ch1Samples!.buffer);
+      expect(latestTransfer[1]).toBe(p.ch2Samples!.buffer);
 
       // 4. Stop
       core.handleMessage(

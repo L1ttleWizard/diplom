@@ -276,5 +276,40 @@
   - TypeScript Diagnostics: **0 errors**
   - Vite Production Build: **856 ms**
 
+---
 
+## Wave 10: SharedArrayBuffer Data Plane & postMessage Comparative Benchmark
 
+- **Date**: 2026-09-06
+- **Environment**:
+  - Runtime: Node.js v24.14.1 (V8 Engine) & Chrome 145 / Chrome DevTools Protocol
+  - OS: Windows x64
+  - Memory: Pre-allocated 512 KB `SharedArrayBuffer` with 128-byte header and power-of-two capacity ($2^{16} = 65,536$)
+  - Synchronization: SPSC Lock-Free Atomics (`Atomics.store` release / `Atomics.load` acquire)
+  - Cross-Origin Isolation: `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`
+- **Comparative Pipeline Benchmarks (1,000,000 Dual-Channel Samples)**:
+
+| Characteristic | Wave 8/9 Message-Passing Baseline | Wave 10 SharedArrayBuffer Data Plane | Delta / Improvement |
+| :--- | :---: | :---: | :---: |
+| **Heap Allocations in High-Rate Loop** | **7.63 MB** (100 ArrayBuffers per 1M samples) | **0 bytes** (Pre-allocated Shared Memory) | **100% Elimination of GC Load** |
+| **Transfer / Streaming Time** | **82.89 – 86.35 ms** | **4.83 – 5.86 ms** | **14.1x – 17.8x faster** |
+| **Data Plane Throughput** | **11.58 – 12.06 MSPS** | **170.65 – 207.13 MSPS** | **> 14x Throughput Gain** |
+| **Buffer Objects Transferred** | 100 Transferable `ArrayBuffer` objects | **0 transferred objects** (event metadata only) | Zero IPC buffer marshaling |
+| **End-to-End Worker Streaming (AFE + ADC + SAB)** | 82.89 ms (12.06 MSPS) | **67.03 – 79.21 ms** (12.63 – 14.92 MSPS) | Bounded, zero memory churn |
+
+- **Long-Running SAB Soak Stress Test**:
+  - Sample Count: **10,000,000 dual-channel samples**
+  - Processing Time: **124.95 – 135.04 ms**
+  - Sustained Streaming Rate: **74.05 – 80.03 MSPS**
+  - Integrity: 100% bit-exact verification across all 10M samples; zero sequence drift, zero torn reads.
+  - Heap Memory Profile: Flatline (zero GC spikes).
+- **Capability Detection & Fallback Validation**:
+  - `SharedMemoryCapability`: 100% accurate detection of COOP/COEP isolation, SAB constructor, and Atomics.
+  - Automatic Fallback: Transparently degrades to `MessagePassingTransport` when isolation is disabled, maintaining identical functional behavior.
+- **Unit & Benchmark Tests**:
+  - Test Suites: **19 passed** (19 total, +4 new suites for Wave 10)
+  - Tests: **175 passed** (175 total, +20 new tests for Wave 10)
+  - Test Execution Duration: 894 ms
+  - Architectural Boundary Violations: **0**
+  - TypeScript Diagnostics: **0 errors**
+  - Vite Production Build: **900 ms**

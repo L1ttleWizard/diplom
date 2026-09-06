@@ -321,5 +321,79 @@ export class BoundedRingBuffer {
 ### 7.3 `SampleRingBuffer` (`src/data/SampleRingBuffer.ts`)
 Specialized subclass of `BoundedRingBuffer` providing backward-compatible signatures for oscilloscope acquisition pipelines.
 
+---
 
+## 8. SharedArrayBuffer Data Plane API (`src/data/shared/`)
 
+### 8.1 `SharedMemoryCapability` (`src/data/shared/SharedMemoryCapability.ts`)
+```typescript
+export interface SharedMemoryCapabilityReport {
+  isSupported: boolean;
+  crossOriginIsolated: boolean;
+  hasAtomics: boolean;
+  canAllocateSAB: boolean;
+  reason: string;
+}
+
+export class SharedMemoryCapability {
+  public static check(forceRefresh?: boolean): SharedMemoryCapabilityReport;
+  public static isSupported(): boolean;
+  public static resetCache(): void;
+}
+```
+
+### 8.2 `SharedRingBufferProducer` (`src/data/shared/SharedRingBufferProducer.ts`)
+```typescript
+export class SharedRingBufferProducer {
+  constructor(buffer: SharedArrayBuffer);
+  public readonly capacity: number;
+  public readonly buffer: SharedArrayBuffer;
+
+  public setState(state: 'IDLE' | 'RUNNING' | 'STOPPED' | 'ERROR'): void;
+  public writeBatch(
+    ch1: Float32Array,
+    ch2: Float32Array,
+    count: number,
+    metadata?: Partial<SharedBatchMetadata>
+  ): void;
+  public reset(): void;
+  public getStats(): SharedRingBufferStats;
+}
+```
+
+### 8.3 `SharedRingBufferConsumer` (`src/data/shared/SharedRingBufferConsumer.ts`)
+```typescript
+export class SharedRingBufferConsumer {
+  constructor(buffer: SharedArrayBuffer);
+  public readonly capacity: number;
+  public readonly buffer: SharedArrayBuffer;
+
+  public readAvailable(ch1Out: Float32Array, ch2Out: Float32Array, maxCount?: number): number;
+  public peekLatest(ch1Out: Float32Array, ch2Out: Float32Array, count: number): number;
+  public flush(): void;
+  public getStats(): SharedRingBufferStats;
+}
+```
+
+### 8.4 `DataPlaneTransport` (`src/data/shared/DataPlaneTransport.ts`)
+```typescript
+export type DataPlaneTransportMode = 'SHARED_ARRAY_BUFFER' | 'MESSAGE_PASSING';
+
+export interface IDataPlaneTransport {
+  readonly mode: DataPlaneTransportMode;
+  readonly capacity: number;
+  writeBatch(ch1: Float32Array, ch2: Float32Array, count: number, metadata?: Partial<SharedBatchMetadata>): void;
+  readAvailable(ch1Out: Float32Array, ch2Out: Float32Array, maxCount?: number): number;
+  peekLatest(ch1Out: Float32Array, ch2Out: Float32Array, count: number): number;
+  getStats(): SharedRingBufferStats;
+  reset(): void;
+  dispose(): void;
+}
+
+export class DataPlaneTransport {
+  public static create(
+    capacity?: number,
+    options?: { forceFallback?: boolean; sampleRate?: number }
+  ): IDataPlaneTransport;
+}
+```

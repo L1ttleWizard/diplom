@@ -12,6 +12,7 @@ import { SimulationClock } from '../../domain/simulation/SimulationClock';
 import { SignalGenerator } from '../../domain/simulation/SignalGenerator';
 import { AnalogFrontEnd } from '../../domain/acquisition/AnalogFrontEnd';
 import { ADCModel } from '../../domain/acquisition/ADCModel';
+import { SharedRingBufferProducer } from '../../data/shared/SharedRingBufferProducer';
 
 export type PostMessageFn = (message: WorkerEventMessage, transfer?: Transferable[]) => void;
 
@@ -19,8 +20,8 @@ export type PostMessageFn = (message: WorkerEventMessage, transfer?: Transferabl
  * Headless Core of the Acquisition Worker.
  *
  * Implements the continuous acquisition loop, versioned protocol handlers,
- * and transferable buffer transfers. Decoupled from browser DOM/Worker APIs
- * so it can be verified in Vitest and executed in Web Workers.
+ * and transferable buffer transfers or zero-copy SharedArrayBuffer writes.
+ * Decoupled from browser DOM/Worker APIs so it can be verified in Vitest.
  */
 export class AcquisitionWorkerCore {
   private _state: WorkerState = 'UNINITIALIZED';
@@ -29,6 +30,7 @@ export class AcquisitionWorkerCore {
   private _intervalMs: number = 20; // 50 Hz default tick rate
   private _batchIndex: number = 0;
   private _timerId: ReturnType<typeof setInterval> | null = null;
+  private _producer: SharedRingBufferProducer | null = null;
 
   // Signal generators for CH1 & CH2
   public readonly genCh1: SignalGenerator;
@@ -42,9 +44,11 @@ export class AcquisitionWorkerCore {
   public readonly adcCh1: ADCModel;
   public readonly adcCh2: ADCModel;
 
-  // Reusable scratch buffers for AFE evaluation
+  // Reusable scratch buffers for AFE evaluation and shared memory writes
   private _scratchRaw: Float32Array;
   private _scratchAfe: Float32Array;
+  private _scratchCh1Out: Float32Array;
+  private _scratchCh2Out: Float32Array;
 
   constructor() {
     this._clock = new SimulationClock(1_000_000);
@@ -59,6 +63,8 @@ export class AcquisitionWorkerCore {
 
     this._scratchRaw = new Float32Array(this._batchSize);
     this._scratchAfe = new Float32Array(this._batchSize);
+    this._scratchCh1Out = new Float32Array(this._batchSize);
+    this._scratchCh2Out = new Float32Array(this._batchSize);
   }
 
   public get state(): WorkerState {
@@ -132,9 +138,17 @@ export class AcquisitionWorkerCore {
       this._batchSize = payload.batchSize;
       this._scratchRaw = new Float32Array(this._batchSize);
       this._scratchAfe = new Float32Array(this._batchSize);
+      this._scratchCh1Out = new Float32Array(this._batchSize);
+      this._scratchCh2Out = new Float32Array(this._batchSize);
     }
     if (payload.intervalMs && payload.intervalMs > 0) {
       this._intervalMs = payload.intervalMs;
+    }
+
+    if (payload.sharedBuffer) {
+      this._producer = new SharedRingBufferProducer(payload.sharedBuffer);
+    } else {
+      this._producer = null;
     }
 
     // Configure CH1
@@ -172,7 +186,8 @@ export class AcquisitionWorkerCore {
         protocolVersion: PROTOCOL_VERSION,
         sampleRate: this._clock.sampleRate,
         batchSize: this._batchSize,
-        workerTimestamp: performance.now()
+        workerTimestamp: performance.now(),
+        dataPlaneMode: this._producer ? 'SHARED_ARRAY_BUFFER' : 'MESSAGE_PASSING'
       }
     });
   }
@@ -189,6 +204,9 @@ export class AcquisitionWorkerCore {
     }
 
     this.transitionState('RUNNING', postMessage);
+    if (this._producer) {
+      this._producer.setState('RUNNING');
+    }
 
     // Begin background interval loop
     this._timerId = setInterval(() => {
@@ -203,6 +221,9 @@ export class AcquisitionWorkerCore {
     }
 
     this.transitionState('STOPPED', postMessage);
+    if (this._producer) {
+      this._producer.setState('STOPPED');
+    }
   }
 
   private handleConfigure(cmd: WorkerCommandMessage, postMessage: PostMessageFn): void {
@@ -270,12 +291,22 @@ export class AcquisitionWorkerCore {
     this.afeCh2.resetFilters();
     this._batchIndex = 0;
 
+    if (this._producer) {
+      this._producer.reset();
+      this._producer.setState('IDLE');
+    }
+
     this.transitionState('IDLE', postMessage);
   }
 
+  public get producer(): SharedRingBufferProducer | null {
+    return this._producer;
+  }
+
   /**
-   * Generates a single batch of CH1 and CH2 samples and transfers them to the caller.
-   * Transferable ArrayBuffer eliminates memory copying overhead.
+   * Generates a single batch of CH1 and CH2 samples.
+   * If a SharedArrayBuffer was supplied, writes directly into shared memory with zero allocations.
+   * Otherwise falls back to Transferable ArrayBuffer transfer.
    */
   public produceBatch(postMessage: PostMessageFn): void {
     if (this._state !== 'RUNNING') return;
@@ -287,9 +318,9 @@ export class AcquisitionWorkerCore {
     const startIdx = this._clock.sampleIndex;
     const simStart = this._clock.simulationTime;
 
-    // Allocate transferable output buffers for this batch
-    const ch1Out = new Float32Array(count);
-    const ch2Out = new Float32Array(count);
+    // Use pre-allocated scratch arrays when writing to shared memory to eliminate GC
+    const ch1Out = this._producer ? this._scratchCh1Out : new Float32Array(count);
+    const ch2Out = this._producer ? this._scratchCh2Out : new Float32Array(count);
 
     // 1. CH1 synthesis & processing
     for (let i = 0; i < count; i++) {
@@ -311,12 +342,9 @@ export class AcquisitionWorkerCore {
     const durationMs = performance.now() - t0;
     const batchIdx = this._batchIndex++;
 
-    const event: WorkerEventMessage = {
-      version: PROTOCOL_VERSION,
-      id: `batch-${batchIdx}`,
-      type: 'BATCH_PRODUCED',
-      timestamp: Date.now(),
-      payload: {
+    if (this._producer) {
+      // Direct write into shared memory ring buffer with Store-Release Atomics
+      this._producer.writeBatch(ch1Out, ch2Out, count, {
         batchIndex: batchIdx,
         sampleCount: count,
         sampleRate,
@@ -324,15 +352,53 @@ export class AcquisitionWorkerCore {
         simulationTimeEnd: simEnd,
         ch1Clipped: resCh1.isClipped,
         ch2Clipped: resCh2.isClipped,
-        ch1Samples: ch1Out,
-        ch2Samples: ch2Out,
-        producedAt: performance.now(),
-        generationDurationMs: durationMs
-      }
-    };
+        producedTimestamp: performance.now()
+      });
 
-    // Zero-copy transfer of underlying ArrayBuffers
-    postMessage(event, [ch1Out.buffer, ch2Out.buffer]);
+      // Zero-copy notification (no buffers transferred over postMessage)
+      postMessage({
+        version: PROTOCOL_VERSION,
+        id: `batch-${batchIdx}`,
+        type: 'BATCH_PRODUCED',
+        timestamp: Date.now(),
+        payload: {
+          batchIndex: batchIdx,
+          sampleCount: count,
+          sampleRate,
+          simulationTimeStart: simStart,
+          simulationTimeEnd: simEnd,
+          ch1Clipped: resCh1.isClipped,
+          ch2Clipped: resCh2.isClipped,
+          producedAt: performance.now(),
+          generationDurationMs: durationMs,
+          mode: 'SHARED_ARRAY_BUFFER'
+        }
+      });
+    } else {
+      // Fallback: Transferable ArrayBuffer pointer transfer
+      const event: WorkerEventMessage = {
+        version: PROTOCOL_VERSION,
+        id: `batch-${batchIdx}`,
+        type: 'BATCH_PRODUCED',
+        timestamp: Date.now(),
+        payload: {
+          batchIndex: batchIdx,
+          sampleCount: count,
+          sampleRate,
+          simulationTimeStart: simStart,
+          simulationTimeEnd: simEnd,
+          ch1Clipped: resCh1.isClipped,
+          ch2Clipped: resCh2.isClipped,
+          ch1Samples: ch1Out,
+          ch2Samples: ch2Out,
+          producedAt: performance.now(),
+          generationDurationMs: durationMs,
+          mode: 'MESSAGE_PASSING'
+        }
+      };
+
+      postMessage(event, [ch1Out.buffer, ch2Out.buffer]);
+    }
   }
 
   private transitionState(newState: WorkerState, postMessage: PostMessageFn): void {
