@@ -3,11 +3,14 @@ import * as THREE from 'three';
 export interface RenderTargetOptions {
   width?: number;
   height?: number;
+  dpr?: number;
 }
 
 export class DisplayRenderTarget {
-  public readonly width: number;
-  public readonly height: number;
+  private _width: number;
+  private _height: number;
+  private _dpr: number;
+
   public readonly canvas: HTMLCanvasElement;
   public readonly ctx: CanvasRenderingContext2D;
   public readonly texture: THREE.CanvasTexture;
@@ -15,17 +18,21 @@ export class DisplayRenderTarget {
   private _isDirty: boolean = true;
 
   constructor(options: RenderTargetOptions = {}) {
-    this.width = options.width ?? 1024;
-    this.height = options.height ?? 640;
+    this._width = options.width ?? 1024;
+    this._height = options.height ?? 640;
+    this._dpr = options.dpr ?? 1.0;
+
+    const physicalW = Math.round(this._width * this._dpr);
+    const physicalH = Math.round(this._height * this._dpr);
 
     if (typeof document !== 'undefined') {
       this.canvas = document.createElement('canvas');
-      this.canvas.width = this.width;
-      this.canvas.height = this.height;
+      this.canvas.width = physicalW;
+      this.canvas.height = physicalH;
       this.ctx = this.canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D;
     } else {
       // Dummy canvas mock for headless testing
-      this.canvas = { width: this.width, height: this.height } as any;
+      this.canvas = { width: physicalW, height: physicalH } as any;
       this.ctx = {} as any;
     }
 
@@ -34,6 +41,44 @@ export class DisplayRenderTarget {
     this.texture.minFilter = THREE.LinearFilter;
     this.texture.magFilter = THREE.LinearFilter;
     this.texture.generateMipmaps = false;
+  }
+
+  public get width(): number {
+    return this._width;
+  }
+
+  public get height(): number {
+    return this._height;
+  }
+
+  public get dpr(): number {
+    return this._dpr;
+  }
+
+  public get physicalWidth(): number {
+    return Math.round(this._width * this._dpr);
+  }
+
+  public get physicalHeight(): number {
+    return Math.round(this._height * this._dpr);
+  }
+
+  public resize(width: number, height: number, dpr?: number): void {
+    const newDpr = dpr ?? this._dpr;
+    if (this._width === width && this._height === height && this._dpr === newDpr) {
+      return;
+    }
+
+    this._width = width;
+    this._height = height;
+    this._dpr = newDpr;
+
+    const physicalW = Math.round(width * newDpr);
+    const physicalH = Math.round(height * newDpr);
+
+    this.canvas.width = physicalW;
+    this.canvas.height = physicalH;
+    this.markDirty();
   }
 
   public attachToScreenMesh(mesh: THREE.Mesh): void {

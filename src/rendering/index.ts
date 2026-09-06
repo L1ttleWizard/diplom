@@ -15,7 +15,11 @@ export * from './interaction/InteractionTarget';
 export * from './interaction/RaycastManager';
 export * from './interaction/OscilloscopeInteractionAdapter';
 
-// Display (Wave 4)
+// Display (Wave 4 & 5)
+export * from './display/types';
 export * from './display/DisplayCoordinates';
 export * from './display/DisplayRenderTarget';
+export * from './display/StaticGridLayer';
+export * from './display/DynamicDisplayLayer';
 export * from './display/DisplayEngine';
+

@@ -11,8 +11,8 @@ export interface NormalizedUV {
 }
 
 export class DisplayCoordinates {
-  public readonly displayWidth: number;
-  public readonly displayHeight: number;
+  private _displayWidth: number;
+  private _displayHeight: number;
   public readonly meshWidth: number;
   public readonly meshHeight: number;
 
@@ -27,10 +27,23 @@ export class DisplayCoordinates {
     meshWidth: number = 0.17,
     meshHeight: number = 0.105
   ) {
-    this.displayWidth = displayWidth;
-    this.displayHeight = displayHeight;
+    this._displayWidth = displayWidth;
+    this._displayHeight = displayHeight;
     this.meshWidth = meshWidth;
     this.meshHeight = meshHeight;
+  }
+
+  public get displayWidth(): number {
+    return this._displayWidth;
+  }
+
+  public get displayHeight(): number {
+    return this._displayHeight;
+  }
+
+  public updateDimensions(width: number, height: number): void {
+    this._displayWidth = width;
+    this._displayHeight = height;
   }
 
   /**
@@ -38,8 +51,8 @@ export class DisplayCoordinates {
    */
   public displayToUV(displayPt: DisplayPoint2D): NormalizedUV {
     return {
-      u: Math.max(0, Math.min(1, displayPt.x / this.displayWidth)),
-      v: Math.max(0, Math.min(1, 1.0 - displayPt.y / this.displayHeight))
+      u: Math.max(0, Math.min(1, displayPt.x / this._displayWidth)),
+      v: Math.max(0, Math.min(1, 1.0 - displayPt.y / this._displayHeight))
     };
   }
 
@@ -48,8 +61,8 @@ export class DisplayCoordinates {
    */
   public uvToDisplay(uv: NormalizedUV): DisplayPoint2D {
     return {
-      x: uv.u * this.displayWidth,
-      y: (1.0 - uv.v) * this.displayHeight
+      x: uv.u * this._displayWidth,
+      y: (1.0 - uv.v) * this._displayHeight
     };
   }
 

@@ -42,6 +42,62 @@ document.addEventListener('DOMContentLoaded', () => {
   btnMed?.addEventListener('click', () => setTier('MEDIUM'));
   btnLow?.addEventListener('click', () => setTier('LOW'));
 
+  // DPR Controls (Wave 5)
+  const btnDpr1 = document.getElementById('btn-dpr-1');
+  const btnDpr15 = document.getElementById('btn-dpr-15');
+  const btnDpr2 = document.getElementById('btn-dpr-2');
+
+  const setDpr = (dpr: number) => {
+    runtime.setDisplayDpr(dpr);
+    btnDpr1?.classList.toggle('active', dpr === 1.0);
+    btnDpr15?.classList.toggle('active', dpr === 1.5);
+    btnDpr2?.classList.toggle('active', dpr === 2.0);
+  };
+
+  btnDpr1?.addEventListener('click', () => setDpr(1.0));
+  btnDpr15?.addEventListener('click', () => setDpr(1.5));
+  btnDpr2?.addEventListener('click', () => setDpr(2.0));
+
+  // Dynamic Layer Toggles (Wave 5)
+  let cursorsEnabled = false;
+  const btnToggleCursors = document.getElementById('btn-toggle-cursors');
+  btnToggleCursors?.addEventListener('click', () => {
+    cursorsEnabled = !cursorsEnabled;
+    runtime.toggleCursors(cursorsEnabled);
+    if (btnToggleCursors) {
+      btnToggleCursors.textContent = `Cursors: ${cursorsEnabled ? 'ON' : 'OFF'}`;
+      btnToggleCursors.classList.toggle('active', cursorsEnabled);
+    }
+  });
+
+  let measEnabled = true;
+  const btnToggleMeas = document.getElementById('btn-toggle-meas');
+  btnToggleMeas?.addEventListener('click', () => {
+    measEnabled = !measEnabled;
+    runtime.toggleMeasurements(measEnabled);
+    if (btnToggleMeas) {
+      btnToggleMeas.textContent = `Measure: ${measEnabled ? 'ON' : 'OFF'}`;
+      btnToggleMeas.classList.toggle('active', measEnabled);
+    }
+  });
+
+  // RUN / STOP Toggle Button
+  const btnRunStop = document.getElementById('btn-run-stop');
+  btnRunStop?.addEventListener('click', () => {
+    const currentState = runtime.service.getState();
+    if (currentState === 'STOPPED' || currentState === 'IDLE') {
+      runtime.service.executeCommand({ type: 'RUN' });
+      if (btnRunStop) {
+        btnRunStop.style.background = '#238636';
+      }
+    } else {
+      runtime.service.executeCommand({ type: 'STOP' });
+      if (btnRunStop) {
+        btnRunStop.style.background = '#da3633';
+      }
+    }
+  });
+
   // Metrics HUD updater (every 250ms)
   const valFps = document.getElementById('val-fps');
   const valFrameTime = document.getElementById('val-frame-time');

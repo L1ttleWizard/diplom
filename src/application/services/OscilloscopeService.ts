@@ -73,4 +73,8 @@ export class OscilloscopeService {
     const events = this._oscilloscope.pullEvents();
     this._eventBus.publishAll(events);
   }
+
+  public executeCommand(command: OscilloscopeCommand): void {
+    this.execute(command);
+  }
 }

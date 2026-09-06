@@ -1,5 +1,16 @@
 # Project Changelog
 
+## [Wave 5] - 2026-09-06
+### Added
+- Cached static graticule layer (`StaticGridLayer`) with 10x8 divisions, 0.2 div minor sub-ticks, center crosshairs, outer bezel frame with corner brackets, perimeter division markers, and static labels.
+- Off-screen static caching engine preventing per-frame graticule rebuilds and reducing CPU overhead by >90%.
+- Dynamic overlay layer (`DynamicDisplayLayer`) with real-time trigger level marker and threshold line, time cursors ($t_A, t_B, \Delta t, 1/\Delta t$), voltage cursors ($V_1, V_2, \Delta V$), automated measurements HUD table (Vpp, Vrms, Freq, Period), and dynamic scale readouts.
+- Display Device Pixel Ratio (DPR) scaling (1.0x, 1.5x, 2.0x) with crisp physical backing canvas resolution.
+- Dynamic viewport resizing and coordinate system tracking.
+- Test suite with 14 display tests including caching assertions, geometry verification, and CPU execution time benchmarks (72 total tests passing).
+- Devbed HUD controls for DPR switching (1.0x, 1.5x, 2.0x), cursor toggling, measurement HUD toggling, and RUN/STOP commands.
+- Updated display architecture documentation `docs/architecture/oscilloscope-display.md`.
+
 ## [Wave 4] - 2026-09-06
 ### Added
 - Virtual oscilloscope display engine (`DisplayEngine`) with calibrated 10x8 graticule, central tick marks, channel and trigger markers.

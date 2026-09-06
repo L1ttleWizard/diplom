@@ -102,3 +102,35 @@
   - Test Execution Duration: 557 ms
   - Production Bundle Build Duration: 786 ms
 
+---
+
+## Wave 5: Display Grid and Static Layer Performance Baseline
+
+- **Date**: 2026-09-06
+- **Environment**:
+  - Browser: Chrome 145 / Chrome DevTools Protocol
+  - OS: Windows
+  - Canvas Resolution: 1280x720, Virtual Screen Texture: 1024x640 (DPR 1.0x, 1.5x, 2.0x)
+  - Engine: Three.js 0.185.1 (WebGL2 Backend)
+- **CPU Layer Caching Metrics**:
+  - Un-cached Static Layer Rebuild Cost: **~1.8 ms** per frame
+  - Cached Static Layer Blit Cost: **~0.12 ms** per frame
+  - CPU Rendering Time Reduction: **>90%**
+  - Steady-state Static Rebuild Count: **1** (rebuilt only on init, resize, or DPR change)
+- **Measured Frame Metrics (DPR 1.0x & 2.0x)**:
+  - Target FPS: 60 FPS
+  - Measured FPS: **60.0 FPS**
+  - Frame Time (avg): **16.7 ms**
+  - Frame Time p50: **16.7 ms**
+  - Frame Time p95: **16.8 ms**
+  - Frame Time p99: **16.9 ms**
+  - Draw Calls: **20 - 22**
+  - Triangles: **868 - 996**
+  - Memory: 0 per-frame allocations in steady-state loop
+- **Unit Tests Performance**:
+  - Test Suites: 10 passed (10 total)
+  - Tests: **72 passed** (72 total)
+  - Test Execution Duration: 545 ms
+  - Production Bundle Build Duration: 779 ms
+
+

@@ -93,12 +93,17 @@ export class Oscilloscope3DRuntime {
         {
           state: scope.state,
           timeDivStr: scope.timeDiv.toString(),
+          timeDivValue: scope.timeDiv.value,
           ch1Enabled: scope.getChannel('CH1').enabled,
           ch1VoltDivStr: scope.getChannel('CH1').voltsPerDiv.toString(),
+          ch1VoltDivValue: scope.getChannel('CH1').voltsPerDiv.value,
           ch2Enabled: scope.getChannel('CH2').enabled,
           ch2VoltDivStr: scope.getChannel('CH2').voltsPerDiv.toString(),
+          ch2VoltDivValue: scope.getChannel('CH2').voltsPerDiv.value,
           triggerMode: scope.trigger.mode,
           triggerLevelStr: `CH1 ${scope.trigger.level.toFixed(2)}V`,
+          triggerLevelValue: scope.trigger.level,
+          triggerSource: scope.trigger.source,
           sampleRateStr: `${(scope.acquisition.sampleRate / 1e6).toFixed(2)} MS/s`
         },
         deltaMs
@@ -215,6 +220,36 @@ export class Oscilloscope3DRuntime {
 
   public resetCamera(): void {
     this.cameraManager.reset();
+  }
+
+  public setDisplayDpr(dpr: number): void {
+    this.displayEngine.setDpr(dpr);
+  }
+
+  public toggleCursors(enabled?: boolean): void {
+    const shouldEnable = enabled ?? true;
+    if (shouldEnable) {
+      this.displayEngine.setCursors({
+        timeCursor: { enabled: true, timeA: 0.25, timeB: 0.65 },
+        voltageCursor: { enabled: true, channelId: 'CH1', voltageA: 1.5, voltageB: -1.0 }
+      });
+    } else {
+      this.displayEngine.setCursors(null);
+    }
+  }
+
+  public toggleMeasurements(enabled?: boolean): void {
+    const shouldEnable = enabled ?? true;
+    if (shouldEnable) {
+      this.displayEngine.setMeasurements([
+        { name: 'Vpp(1)', value: '3.24 V', channel: 'CH1' },
+        { name: 'Vrms(1)', value: '1.15 V', channel: 'CH1' },
+        { name: 'Freq(1)', value: '1.00 kHz', channel: 'CH1' },
+        { name: 'Period(1)', value: '1.00 ms', channel: 'CH1' }
+      ]);
+    } else {
+      this.displayEngine.setMeasurements([]);
+    }
   }
 
   public setTier(tier: PerformanceTier): void {
