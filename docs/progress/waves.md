@@ -107,5 +107,70 @@
 
 ---
 
+---
+
+# Wave 2: 3D Scene Foundation
+
+- **Status**: DONE
+- **Goal**: Создать стабильный базовый 3D runtime на Three.js с управлением камерой, ассетами, циклом отрисовки и мониторингом производительности.
+
+## Implemented
+1. Инициализация рендерера `RendererBootstrap` (WebGL2) с поддержкой Performance Tiers (HIGH / MEDIUM / LOW) и обработкой потери контекста.
+2. Стандартизированная иерархия сцены `SceneManager` (`lab_root` -> `environment_group`, `lighting_group`, `oscilloscope_group`, `generator_group`, `circuit_group`).
+3. Трехточечное студийное освещение (Key Light с мягкими тенями 2048x2048, Fill Light, Ambient Light).
+4. Контроллер камеры `CameraManager` с поддержкой `orbit`, `zoom`, `pan`, `reset` и защитой от переворота.
+5. Адаптивный `ResizeController` (ResizeObserver).
+6. Цикл отрисовки `RenderLoop` с **Zero Per-Frame Allocations** и непрерывным мониторингом.
+7. Менеджер ресурсов `AssetLifecycle` с кешированием геометрий/материалов и безопасным рекурсивным `dispose()`.
+8. Загрузчик моделей `GLTFAssetLoader` с fallback на процедурные модели.
+9. Процедурный генератор физической модели осциллографа и лабораторного стола `LabSceneBuilder`.
+10. `PerformanceMonitor` с расчетом скользящих перцентилей p50/p95/p99 без мусора в памяти.
+11. Интерактивный стенд `index.html` и `src/main.ts` с HUD-оверлеем.
+
+## Baseline Metrics (Chromium WebGL2)
+- HIGH Tier: 60 FPS, frame time 16.5 ms, p50: 16.7 ms, p95: 16.9 ms, p99: 16.9 ms, draw calls: 21, triangles: 932.
+- LOW Tier: 60 FPS, frame time 16.7 ms, p50: 16.7 ms, p95: 16.8 ms, p99: 16.9 ms, draw calls: 19, triangles: 908.
+
+## Acceptance Gate
+**PASS** — Стабильные 60 FPS, draw calls < 25, zero per-frame garbage, 54 unit-теста проходят успешно.
+
+---
+
+# Wave 3: 3D Oscilloscope Physical Model
+
+- **Status**: DONE
+- **Goal**: Превратить 3D-модель осциллографа в интерактивный физический объект, строго соблюдая однонаправленный поток данных (`Pointer → Raycaster → InteractionTarget → Command → Domain`).
+- **Implemented**:
+  1. Стандартизированы стабильные идентификаторы органов управления (`STABLE_IDS`): `osc.body`, `osc.screen`, `osc.knob.time`, `osc.knob.voltage`, `osc.button.run`, `osc.button.stop`, `osc.channel.ch1`, `osc.channel.ch2`, `osc.input.ch1`, `osc.input.ch2`, `osc.trigger.level`, `osc.trigger.mode`.
+  2. Реализован модуль рейкастинга `RaycastManager` с поддержкой нормализованных экранных координат NDC, отслеживанием событий hover, click, drag-start, drag-move, drag-end.
+  3. Реализован адаптер взаимодействия `OscilloscopeInteractionAdapter`:
+     - Для ручек: трансляция вертикального смещения (drag) в дискретные команды шкалы 1-2-5 (`SET_TIME_DIV`, `SET_VOLT_DIV`).
+     - Для кнопок: генерация команд `RUN`, `STOP`, `ENABLE_CHANNEL`, `DISABLE_CHANNEL`.
+  4. Реализован ключевой инвариант синхронизации: вращение ручек в 3D (`knob.rotation.z`) вычисляется строго как проекция доменных событий (`TIME_DIV_CHANGED`, `CHANNEL_UPDATED`), исключая визуальный рассинхрон.
+  5. Написаны и запущены автоматизированные тесты взаимодействия и синхронизации.
+- **Acceptance Gate**: **PASS** — Интерактивность 3D-модели полностью отделена от логики домена. 100% тестов проходят без ошибок.
+
+---
+
+# Wave 4: Virtual Display Architecture
+
+- **Status**: DONE
+- **Goal**: Создать встроенный виртуальный экран внутри 3D-модели осциллографа с рендерингом в текстуру (GPU render target), калиброванной координатной сеткой и диагностическим сигналом без использования HTML/DOM оверлеев.
+- **Implemented**:
+  1. Реализован движок виртуального дисплея `DisplayEngine`:
+     - Калиброванная сетка шкалы IEEE/IEC: 10 горизонтальных делений x 8 вертикальных делений.
+     - Центральные оси с 5 подделениями на деление.
+     - Индикаторы каналов (CH1 желтый `#ffcc00`, CH2 циан `#00e5ff`) с вольт/дел и связью.
+     - Индикатор развертки (`M: 1.00 ms`).
+     - Маркер порога синхронизации (`T ▶`) и статусы `RUN` (зеленый) / `STOP` (красный).
+     - Динамический диагностический сигнал: модулированная синусоида с анимацией фазы при активной развертке и мгновенной заморозкой при `STOP`.
+  2. Реализован модуль привязки к буферу GPU `DisplayRenderTarget`:
+     - Текстура $1024 \times 640$ (`THREE.CanvasTexture`) привязана к материалу `MeshStandardMaterial` меша `oscilloscope_screen` как `map` и `emissiveMap`.
+     - Zero DOM overlays: экран является частью физического 3D-объекта, сохраняет перспективную корректность при вращении и панорамировании камеры.
+  3. Формализованы 3 системы координат: `Display Coordinates` (пиксели дисплея), `Screen-Local Coordinates` (метры на плоскости экрана), `World Coordinates` (мировое 3D-пространство лаборатории).
+- **Acceptance Gate**: **PASS** — Экран полностью интегрирован в 3D-меш, стабильные 60 FPS, draw calls 20-21, 63 теста проходят.
+
+---
+
 # Next Wave
-- **Wave 2**: 3D Scene Foundation (Bootstrap сцены, Three.js рендерер, камера, адаптер прибора).
+- **Wave 5**: Virtual Signal Generation & Acquisition Engine (Data Plane, 1–5 MSPS генерация отсчетов, кольцевой буфер, триггерная подсистема, воркеры).

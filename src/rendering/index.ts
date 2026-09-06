@@ -1,13 +1,21 @@
-/**
- * Rendering Layer (Wave 2+)
- *
- * This layer is responsible for Three.js scene management, GPU shaders,
- * and rendering adapters. It depends on Domain/Application interfaces,
- * but Domain NEVER depends on or imports this layer.
- */
+export * from './types';
+export * from './core/RendererBootstrap';
+export * from './core/SceneManager';
+export * from './core/CameraManager';
+export * from './core/ResizeController';
+export * from './core/RenderLoop';
+export * from './core/Oscilloscope3DRuntime';
+export * from './assets/AssetLifecycle';
+export * from './assets/GLTFAssetLoader';
+export * from './procedural/LabSceneBuilder';
+export * from './diagnostics/PerformanceMonitor';
 
-export interface IOscilloscopeRendererAdapter {
-  initialize(canvas: unknown): Promise<void>;
-  renderFrame(): void;
-  destroy(): void;
-}
+// Interaction (Wave 3)
+export * from './interaction/InteractionTarget';
+export * from './interaction/RaycastManager';
+export * from './interaction/OscilloscopeInteractionAdapter';
+
+// Display (Wave 4)
+export * from './display/DisplayCoordinates';
+export * from './display/DisplayRenderTarget';
+export * from './display/DisplayEngine';

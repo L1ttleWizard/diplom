@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Browser Digital Twin — 3D Oscilloscope Bench</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        user-select: none;
+      }
+      body, html {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: #0d1117;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #e6edf3;
+      }
+      #canvas-container {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
+      #hud-overlay {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        background: rgba(13, 17, 23, 0.85);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(240, 246, 252, 0.15);
+        border-radius: 8px;
+        padding: 14px 18px;
+        pointer-events: auto;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        max-width: 340px;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .hud-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #58a6ff;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .metric-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 3px;
+      }
+      .metric-label {
+        color: #8b949e;
+      }
+      .metric-value {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-weight: 500;
+        color: #3fb950;
+      }
+      .metric-value.warn {
+        color: #d29922;
+      }
+      .divider {
+        height: 1px;
+        background: rgba(240, 246, 252, 0.1);
+        margin: 8px 0;
+      }
+      .button-group {
+        display: flex;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      button {
+        background: #21262d;
+        color: #c9d1d9;
+        border: 1px solid rgba(240, 246, 252, 0.15);
+        padding: 5px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: all 0.15s ease;
+      }
+      button:hover {
+        background: #30363d;
+        border-color: #8b949e;
+      }
+      button.active {
+        background: #1f6feb;
+        color: #ffffff;
+        border-color: #58a6ff;
+      }
+      #hints {
+        position: absolute;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(13, 17, 23, 0.75);
+        backdrop-filter: blur(4px);
+        border: 1px solid rgba(240, 246, 252, 0.1);
+        border-radius: 6px;
+        padding: 6px 14px;
+        font-size: 12px;
+        color: #8b949e;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="canvas-container">
+      <canvas id="render-canvas"></canvas>
+    </div>
+
+    <div id="hud-overlay">
+      <div class="hud-title">
+        <span>⚡ 3D Lab Bench Runtime</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">FPS:</span>
+        <span class="metric-value" id="val-fps">60</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Frame Time:</span>
+        <span class="metric-value" id="val-frame-time">16.6 ms</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">p50 / p95 / p99:</span>
+        <span class="metric-value" id="val-percentiles">16.6 / 16.6 / 16.6 ms</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Draw Calls:</span>
+        <span class="metric-value" id="val-draw-calls">--</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Triangles:</span>
+        <span class="metric-value" id="val-triangles">--</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="button-group">
+        <button id="btn-tier-high" class="active">HIGH</button>
+        <button id="btn-tier-med">MEDIUM</button>
+        <button id="btn-tier-low">LOW</button>
+      </div>
+
+      <div class="button-group">
+        <button id="btn-reset-cam" style="width: 100%;">Reset Camera View</button>
+      </div>
+    </div>
+
+    <div id="hints">
+      Left Drag: <b>Orbit</b> | Right Drag / Shift+Drag: <b>Pan</b> | Scroll: <b>Zoom</b>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
