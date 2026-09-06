@@ -3,6 +3,7 @@ import {
   ChannelId,
   TriggerMode,
   TriggerSource,
+  TriggerSlope,
   MeasurementType
 } from '../types';
 
@@ -32,6 +33,8 @@ export interface TriggeredEvent extends BaseDomainEvent {
   readonly source: TriggerSource;
   readonly level: number;
   readonly triggerIndex?: number;
+  readonly fractionalOffset?: number;
+  readonly isForcedAuto?: boolean;
 }
 
 export interface MeasurementUpdatedEvent extends BaseDomainEvent {
@@ -66,7 +69,12 @@ export interface TriggerConfigChangedEvent extends BaseDomainEvent {
   readonly mode: TriggerMode;
   readonly source: TriggerSource;
   readonly level: number;
+  readonly slope?: TriggerSlope;
+  readonly position?: number;
+  readonly holdoff?: number;
+  readonly hysteresis?: number;
 }
+
 
 export type OscilloscopeEvent =
   | StateChangedEvent

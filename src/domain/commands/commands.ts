@@ -1,6 +1,8 @@
 import {
   ChannelId,
   TriggerMode,
+  TriggerSource,
+  TriggerSlope,
   DomainValidationError
 } from '../types';
 import { TimeDiv } from '../value-objects/TimeDiv';
@@ -35,6 +37,35 @@ export interface SetTriggerModeCommand {
   readonly mode: TriggerMode;
 }
 
+export interface SetTriggerSlopeCommand {
+  readonly type: 'SET_TRIGGER_SLOPE';
+  readonly slope: TriggerSlope;
+}
+
+export interface SetTriggerSourceCommand {
+  readonly type: 'SET_TRIGGER_SOURCE';
+  readonly source: TriggerSource;
+}
+
+export interface SetTriggerPositionCommand {
+  readonly type: 'SET_TRIGGER_POSITION';
+  readonly position: number;
+}
+
+export interface SetTriggerHoldoffCommand {
+  readonly type: 'SET_TRIGGER_HOLDOFF';
+  readonly holdoff: number;
+}
+
+export interface SetTriggerHysteresisCommand {
+  readonly type: 'SET_TRIGGER_HYSTERESIS';
+  readonly hysteresis: number;
+}
+
+export interface ForceTriggerCommand {
+  readonly type: 'FORCE_TRIGGER';
+}
+
 export interface EnableChannelCommand {
   readonly type: 'ENABLE_CHANNEL';
   readonly channelId: ChannelId;
@@ -52,6 +83,12 @@ export type OscilloscopeCommand =
   | SetVoltDivCommand
   | SetTriggerLevelCommand
   | SetTriggerModeCommand
+  | SetTriggerSlopeCommand
+  | SetTriggerSourceCommand
+  | SetTriggerPositionCommand
+  | SetTriggerHoldoffCommand
+  | SetTriggerHysteresisCommand
+  | ForceTriggerCommand
   | EnableChannelCommand
   | DisableChannelCommand;
 
@@ -111,6 +148,55 @@ export function validateCommand(command: OscilloscopeCommand): void {
       }
       break;
 
+    case 'SET_TRIGGER_SLOPE':
+      if (command.slope !== 'RISING' && command.slope !== 'FALLING') {
+        throw new DomainValidationError(
+          'slope',
+          `Invalid trigger slope: ${command.slope}. Must be RISING or FALLING.`
+        );
+      }
+      break;
+
+    case 'SET_TRIGGER_SOURCE':
+      if (command.source !== 'CH1' && command.source !== 'CH2' && command.source !== 'EXT') {
+        throw new DomainValidationError(
+          'source',
+          `Invalid trigger source: ${command.source}. Must be CH1, CH2, or EXT.`
+        );
+      }
+      break;
+
+    case 'SET_TRIGGER_POSITION':
+      if (!Number.isFinite(command.position) || command.position < 0.0 || command.position > 1.0) {
+        throw new DomainValidationError(
+          'position',
+          `Trigger position must be a number between 0.0 and 1.0, received: ${command.position}`
+        );
+      }
+      break;
+
+    case 'SET_TRIGGER_HOLDOFF':
+      if (!Number.isFinite(command.holdoff) || command.holdoff < 0) {
+        throw new DomainValidationError(
+          'holdoff',
+          `Holdoff must be a non-negative finite number, received: ${command.holdoff}`
+        );
+      }
+      break;
+
+    case 'SET_TRIGGER_HYSTERESIS':
+      if (!Number.isFinite(command.hysteresis) || command.hysteresis < 0) {
+        throw new DomainValidationError(
+          'hysteresis',
+          `Hysteresis must be a non-negative finite number, received: ${command.hysteresis}`
+        );
+      }
+      break;
+
+    case 'FORCE_TRIGGER':
+      // No extra fields to validate
+      break;
+
     case 'ENABLE_CHANNEL':
     case 'DISABLE_CHANNEL':
       if (command.channelId !== 'CH1' && command.channelId !== 'CH2') {
@@ -127,3 +213,4 @@ export function validateCommand(command: OscilloscopeCommand): void {
     }
   }
 }
+

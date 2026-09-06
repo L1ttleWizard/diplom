@@ -3,6 +3,8 @@ import { SimulationClock } from '../../domain/simulation/SimulationClock';
 import { WaveformType } from '../../domain/simulation/types';
 import { OscilloscopeService } from '../services/OscilloscopeService';
 import { BoundedRingBuffer } from '../../data/BoundedRingBuffer';
+import { TriggerEngine } from '../../domain/trigger/TriggerEngine';
+import { CaptureWindow } from '../../domain/trigger/types';
 
 export interface TestBenchConfig {
   sampleRate: number;      // Samples per second (default: 1_000_000)
@@ -49,6 +51,7 @@ export class TestBench {
   public readonly signalGenerator: SignalGenerator;
   public readonly clock: SimulationClock;
   public readonly ringBuffer: BoundedRingBuffer;
+  public readonly triggerEngine: TriggerEngine;
 
   // Pre-allocated scratch buffers to ensure ZERO allocations in runtime loop
   private readonly _batchScratch: Float32Array;
@@ -57,6 +60,7 @@ export class TestBench {
   // Trigger state tracking
   private _lastTriggerSampleIndex: number = -1;
   private _lastTriggerLocked: boolean = false;
+  private _newlyAcquiredSamplesSinceRender: number = 0;
 
   constructor(
     config?: Partial<TestBenchConfig>,
@@ -77,6 +81,19 @@ export class TestBench {
       capacity: this.config.bufferCapacity,
       overflowPolicy: 'OVERWRITE',
       underflowPolicy: 'PARTIAL'
+    });
+
+    this.triggerEngine = new TriggerEngine({
+      sampleRate: this.config.sampleRate,
+      timeDiv: this.service.oscilloscope.timeDiv.value,
+      level: this.service.oscilloscope.trigger.level,
+      slope: this.service.oscilloscope.trigger.slope,
+      mode: this.service.oscilloscope.trigger.mode,
+      source: this.service.oscilloscope.trigger.source,
+      holdoff: this.service.oscilloscope.trigger.holdoff,
+      position: this.service.oscilloscope.trigger.position,
+      hysteresis: this.service.oscilloscope.trigger.hysteresis,
+      autoTimeout: this.service.oscilloscope.trigger.autoTimeout
     });
 
     // Scratch buffers
@@ -107,6 +124,7 @@ export class TestBench {
       this.ringBuffer.write(this._batchScratch, chunk);
       remaining -= chunk;
     }
+    this._newlyAcquiredSamplesSinceRender += sampleCount;
   }
 
   /**
@@ -126,11 +144,7 @@ export class TestBench {
 
   /**
    * Searches for digital trigger condition in recent samples.
-   *
-   * @param level Trigger threshold in Volts.
-   * @param edge 'RISING' | 'FALLING'
-   * @param searchSpan Maximum number of samples to look back.
-   * @returns Global sample index of the trigger crossing, or -1 if not found.
+   * Delegates to TriggerEngine detector.
    */
   public findTriggerCrossing(
     level: number,
@@ -139,35 +153,16 @@ export class TestBench {
     maxSearchIndex?: number
   ): number {
     const totalWritten = this.ringBuffer.totalWritten;
-    const oldestAvailable = this.ringBuffer.totalRead;
-    const available = totalWritten - oldestAvailable;
-
-    if (available < 2) return -1;
-
     const upperLimit = maxSearchIndex !== undefined ? Math.min(totalWritten - 1, maxSearchIndex) : totalWritten - 1;
-    const lowerLimit = Math.max(oldestAvailable + 1, upperLimit - searchSpan);
-
-    if (upperLimit <= lowerLimit) return -1;
-
-    // Search backwards from upperLimit towards lowerLimit
-    for (let idx = upperLimit; idx >= lowerLimit; idx--) {
-      const vPrev = this.sampleAtGlobal(idx - 1);
-      const vCurr = this.sampleAtGlobal(idx);
-
-      if (vPrev === null || vCurr === null) continue;
-
-      if (edge === 'RISING') {
-        if (vPrev < level && vCurr >= level) {
-          return idx;
-        }
-      } else {
-        if (vPrev > level && vCurr <= level) {
-          return idx;
-        }
-      }
-    }
-
-    return -1;
+    
+    this.triggerEngine.detector.setLevel(level);
+    this.triggerEngine.detector.setSlope(edge);
+    const res = this.triggerEngine.detector.findTriggerReverse(
+      (idx) => this.sampleAtGlobal(idx),
+      upperLimit,
+      searchSpan
+    );
+    return res ? res.sampleIndex : -1;
   }
 
   /**
@@ -187,7 +182,7 @@ export class TestBench {
 
   /**
    * Decimates and transforms ring buffer samples into the display buffer.
-   * Applies horizontal time windowing and vertical Volt/Div scaling.
+   * Uses sample-domain TriggerEngine for zero-jitter phase alignment and mode semantics.
    */
   public computeDisplayBuffer(
     destination?: Float32Array,
@@ -197,73 +192,61 @@ export class TestBench {
     const dest = destination ?? this._displayBuffer;
 
     const scope = this.service.oscilloscope;
-    const timeDiv = scope.timeDiv.value; // seconds per div
+    const timeDiv = scope.timeDiv.value;
     const ch1 = scope.getChannel('CH1');
-    const voltDiv = ch1.voltsPerDiv.value; // Volts per div
-    const chOffset = ch1.offset; // Volts
+    const voltDiv = ch1.voltsPerDiv.value;
+    const chOffset = ch1.offset;
     const trigger = scope.trigger;
 
-    // 10 divisions across the horizontal graticule
-    const visibleTimeWindow = 10 * timeDiv;
-    const samplesInWindow = Math.max(2, Math.round(visibleTimeWindow * this.config.sampleRate));
-    const halfWindow = Math.round(samplesInWindow * 0.5);
+    // Synchronize TriggerEngine with active domain settings
+    this.triggerEngine.configure({
+      sampleRate: this.config.sampleRate,
+      timeDiv,
+      level: trigger.level,
+      slope: trigger.slope,
+      mode: trigger.mode,
+      source: trigger.source,
+      holdoff: trigger.holdoff,
+      position: trigger.position,
+      hysteresis: trigger.hysteresis,
+      autoTimeout: trigger.autoTimeout
+    });
 
-    const oldestAvailable = this.ringBuffer.totalRead;
-    const newestAvailable = this.ringBuffer.totalWritten;
+    const totalWritten = this.ringBuffer.totalWritten;
+    const totalRead = this.ringBuffer.totalRead;
 
-    // Trigger search with post-trigger margin so the right half of the screen is not truncated
-    const maxSearchIdx = newestAvailable - 1 - halfWindow;
-    const searchSpan = Math.max(samplesInWindow * 2, 4096);
+    const captureWin = this.triggerEngine.processAcquisition(
+      (idx) => this.sampleAtGlobal(idx),
+      totalWritten,
+      totalRead,
+      this._newlyAcquiredSamplesSinceRender
+    );
+    this._newlyAcquiredSamplesSinceRender = 0;
 
-    let trigIdx = -1;
-    if (maxSearchIdx > oldestAvailable + 2) {
-      trigIdx = this.findTriggerCrossing(
-        trigger.level,
-        trigger.slope === 'FALLING' ? 'FALLING' : 'RISING',
-        searchSpan,
-        maxSearchIdx
+    if (captureWin !== null) {
+      this._lastTriggerSampleIndex = captureWin.triggerSampleIndex;
+      this._lastTriggerLocked = captureWin.isTriggered;
+
+      this.triggerEngine.extractDisplayBuffer(
+        (idx) => this.sampleAtGlobal(idx),
+        captureWin,
+        dest,
+        points,
+        voltDiv,
+        chOffset
       );
-    }
 
-    let startSampleIndex: number;
-
-    if (trigIdx !== -1) {
-      this._lastTriggerSampleIndex = trigIdx;
-      this._lastTriggerLocked = true;
-      startSampleIndex = trigIdx - halfWindow;
+      if (captureWin.isTriggered) {
+        scope.notifyTriggerFired(
+          captureWin.triggerSampleIndex,
+          captureWin.fractionalOffset,
+          captureWin.isForcedAuto
+        );
+      }
     } else {
-      this._lastTriggerLocked = false;
-      if (trigger.mode === 'AUTO') {
-        startSampleIndex = newestAvailable - samplesInWindow;
-      } else {
-        startSampleIndex =
-          this._lastTriggerSampleIndex !== -1
-            ? this._lastTriggerSampleIndex - halfWindow
-            : newestAvailable - samplesInWindow;
+      if (this.triggerEngine.state === 'WAITING_TRIGGER') {
+        this._lastTriggerLocked = false;
       }
-    }
-
-    if (startSampleIndex < oldestAvailable) {
-      startSampleIndex = oldestAvailable;
-    }
-
-    // Decimation & Vertical Transformation
-    const centerPointIdx = Math.floor(points / 2);
-    for (let i = 0; i < points; i++) {
-      let sampleIdx: number;
-      if (trigIdx !== -1) {
-        // Exactly map center display index (e.g. 300) to trigIdx
-        sampleIdx = trigIdx + Math.round(((i - centerPointIdx) / points) * samplesInWindow);
-      } else {
-        const frac = i / (points - 1);
-        sampleIdx = Math.round(startSampleIndex + frac * samplesInWindow);
-      }
-
-      sampleIdx = Math.min(newestAvailable - 1, Math.max(oldestAvailable, sampleIdx));
-
-      const rawVoltage = this.sampleAtGlobal(sampleIdx) ?? 0.0;
-      const divOffset = (rawVoltage - chOffset) / voltDiv;
-      dest[i] = divOffset;
     }
 
     return dest;
@@ -288,7 +271,7 @@ export class TestBench {
       triggerLevel: trigger.level,
       visibleTimeWindow: 10 * timeDiv,
       displayBufferSize: this.config.displayPoints,
-      triggerPosition: 5.0, // 5th division = center
+      triggerPosition: trigger.position * 10, // Position in graticule divisions
       triggered: this._lastTriggerLocked,
       triggerSampleIndex: this._lastTriggerSampleIndex,
       totalAcquiredSamples: this.ringBuffer.totalWritten

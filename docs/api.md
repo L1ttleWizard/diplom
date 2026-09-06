@@ -14,6 +14,12 @@ Commands are dispatched to `OscilloscopeService.executeCommand(cmd)`. Every comm
 | `SET_VOLT_DIV` | `{ channelId: ChannelId, voltDiv: number }` | `voltDiv` in 1-2-5 scale (`0.001` to `10.0` V), channel exists | Sets vertical scale |
 | `SET_TRIGGER_LEVEL`| `{ level: number }` | Finite number, within operational voltage bounds (-50V..+50V) | Adjusts trigger voltage threshold |
 | `SET_TRIGGER_MODE` | `{ mode: 'AUTO' \| 'NORMAL' \| 'SINGLE' }` | Valid enum string | Sets sweep trigger mode |
+| `SET_TRIGGER_SLOPE`| `{ slope: 'RISING' \| 'FALLING' }` | Valid enum string | Sets edge detection polarity |
+| `SET_TRIGGER_SOURCE`| `{ source: ChannelId }` | Channel exists (`CH1` or `CH2`) | Sets trigger input source channel |
+| `SET_TRIGGER_POSITION`| `{ position: number }` | Normalized range `0.0` to `1.0` | Sets horizontal trigger marker position |
+| `SET_TRIGGER_HOLDOFF`| `{ holdoff: number }` | Finite number `>= 0` | Sets re-arm suppression time (s) |
+| `SET_TRIGGER_HYSTERESIS`| `{ hysteresis: number }`| Finite number `>= 0` | Sets Schmitt trigger noise rejection band (V) |
+| `FORCE_TRIGGER` | `{}` | None | Triggers immediate manual sweep |
 | `ENABLE_CHANNEL` | `{ channelId: ChannelId }` | Valid `CH1` or `CH2` | Enables channel display & acquisition |
 | `DISABLE_CHANNEL`| `{ channelId: ChannelId }` | At least one channel must remain enabled | Disables channel display |
 
@@ -30,10 +36,10 @@ Published by `EventBus` when domain state mutates. 3D adapters and display engin
 | `STATE_CHANGED` | `{ previous: OscilloscopeState, current: OscilloscopeState }` | Oscilloscope state machine transitions |
 | `ACQUISITION_STARTED` | `{ timestamp: number, sampleRate: number }` | Domain begins data acquisition loop |
 | `ACQUISITION_STOPPED` | `{ timestamp: number }` | User stops acquisition or single sweep completes |
-| `TRIGGERED` | `{ timestamp: number, channelId: ChannelId, level: number }` | Hardware/virtual trigger fires |
+| `TRIGGERED` | `{ timestamp: number, channelId: ChannelId, level: number, triggerIndex?: number, fractionalOffset?: number, isForcedAuto?: boolean }` | Hardware/virtual trigger fires |
 | `TIME_DIV_CHANGED` | `{ timeDiv: number }` | Timebase setting modified |
 | `CHANNEL_UPDATED` | `{ channelId: ChannelId, voltDiv: number, enabled: boolean, offset: number, coupling: string }` | Channel parameter updated |
-| `TRIGGER_CONFIG_CHANGED` | `{ mode: string, source: ChannelId, level: number, edge: string }` | Trigger parameter modified |
+| `TRIGGER_CONFIG_CHANGED` | `{ mode: string, source: ChannelId, level: number, slope?: string, position?: number, holdoff?: number, hysteresis?: number }` | Trigger parameter modified |
 | `MEASUREMENT_UPDATED` | `{ channelId: ChannelId, measurements: MeasurementResult[] }` | Automated measurements calculated |
 | `DEVICE_ERROR` | `{ message: string, code: string }` | State machine or acquisition error occurs |
 
@@ -564,4 +570,103 @@ export class IirBiquadFilter implements IIirFilter {
   public reset(): void;
 }
 ```
+
+---
+
+## 11. Sample-Domain Trigger Engine API (`src/domain/trigger/`)
+
+### 11.1 Types and Configurations (`src/domain/trigger/types.ts`)
+```typescript
+export type TriggerSlope = 'RISING' | 'FALLING';
+export type TriggerMode = 'AUTO' | 'NORMAL' | 'SINGLE';
+export type TriggerSource = 'CH1' | 'CH2' | 'EXT';
+
+export interface TriggerDetectorState {
+  isArmed: boolean;
+  holdoffRemaining: number;
+  lastSample: number;
+  hasLastSample: boolean;
+}
+
+export interface TriggerDetectionResult {
+  triggered: boolean;
+  sampleIndex: number;
+  fractionalOffset: number;
+}
+
+export interface CaptureWindow {
+  startIndex: number;
+  count: number;
+  triggerSampleIndex: number;
+  fractionalOffset: number;
+  isForcedAuto: boolean;
+  isReady: boolean;
+}
+
+export interface TriggerEngineConfig {
+  mode: TriggerMode;
+  source: TriggerSource;
+  slope: TriggerSlope;
+  level: number;
+  position: number;
+  holdoff: number;
+  hysteresis: number;
+  autoTimeout: number;
+  sampleRate: number;
+  timeDiv: number;
+}
+```
+
+### 11.2 Trigger Detector (`src/domain/trigger/TriggerDetector.ts`)
+```typescript
+export class TriggerDetector {
+  constructor(level?: number, slope?: TriggerSlope, hysteresis?: number, holdoffSamples?: number);
+
+  public reset(): void;
+  public setLevel(level: number): void;
+  public setSlope(slope: TriggerSlope): void;
+  public setHysteresis(hysteresis: number): void;
+  public setHoldoffSamples(holdoffSamples: number): void;
+
+  // Streaming evaluation
+  public processSample(sample: number, sampleIndex: number): TriggerDetectionResult;
+  public findTriggerInBatch(samples: Float32Array, startIndex: number, count: number): TriggerDetectionResult;
+
+  // Backward search for circular buffers
+  public findTriggerReverse(
+    buffer: Float32Array | { get(index: number): number },
+    capacity: number,
+    writeIndex: number,
+    searchCount: number
+  ): TriggerDetectionResult;
+}
+```
+
+### 11.3 Trigger Engine (`src/domain/trigger/TriggerEngine.ts`)
+```typescript
+export class TriggerEngine {
+  constructor(config: TriggerEngineConfig);
+
+  public updateConfig(patch: Partial<TriggerEngineConfig>): void;
+  public notifyWritten(newSamplesCount: number): void;
+  public processAcquisition(
+    samples: Float32Array | { get(index: number): number },
+    capacity: number,
+    writeIndex: number,
+    deltaTimeMs: number
+  ): CaptureWindow | null;
+
+  public extractDisplayBuffer(
+    buffer: Float32Array | { get(index: number): number },
+    capacity: number,
+    window: CaptureWindow,
+    displayPoints?: number,
+    output?: Float32Array
+  ): Float32Array;
+
+  public reset(): void;
+  public forceTrigger(): void;
+}
+```
+
 

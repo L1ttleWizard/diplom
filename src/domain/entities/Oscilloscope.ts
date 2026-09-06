@@ -1,6 +1,8 @@
 import {
   ChannelId,
   TriggerMode,
+  TriggerSource,
+  TriggerSlope,
   OscilloscopeStateEnum,
   DomainValidationError
 } from '../types';
@@ -252,15 +254,7 @@ export class Oscilloscope {
    */
   public setTriggerLevel(level: number): void {
     this._trigger.setLevel(level);
-
-    this.recordEvent<TriggerConfigChangedEvent>({
-      id: createEventId(),
-      timestamp: Date.now(),
-      type: 'TRIGGER_CONFIG_CHANGED',
-      mode: this._trigger.mode,
-      source: this._trigger.source,
-      level: this._trigger.level
-    });
+    this.recordTriggerConfigChanged();
   }
 
   /**
@@ -268,21 +262,72 @@ export class Oscilloscope {
    */
   public setTriggerMode(mode: TriggerMode): void {
     this._trigger.setMode(mode);
+    this.recordTriggerConfigChanged();
+  }
 
+  /**
+   * Configure trigger slope
+   */
+  public setTriggerSlope(slope: TriggerSlope): void {
+    this._trigger.setSlope(slope);
+    this.recordTriggerConfigChanged();
+  }
+
+  /**
+   * Configure trigger source
+   */
+  public setTriggerSource(source: TriggerSource): void {
+    this._trigger.setSource(source);
+    this.recordTriggerConfigChanged();
+  }
+
+  /**
+   * Configure horizontal trigger position (0.0 to 1.0)
+   */
+  public setTriggerPosition(position: number): void {
+    this._trigger.setPosition(position);
+    this.recordTriggerConfigChanged();
+  }
+
+  /**
+   * Configure trigger holdoff time in seconds
+   */
+  public setTriggerHoldoff(holdoff: number): void {
+    this._trigger.setHoldoff(holdoff);
+    this.recordTriggerConfigChanged();
+  }
+
+  /**
+   * Configure trigger hysteresis noise rejection in Volts
+   */
+  public setTriggerHysteresis(hysteresis: number): void {
+    this._trigger.setHysteresis(hysteresis);
+    this.recordTriggerConfigChanged();
+  }
+
+  private recordTriggerConfigChanged(): void {
     this.recordEvent<TriggerConfigChangedEvent>({
       id: createEventId(),
       timestamp: Date.now(),
       type: 'TRIGGER_CONFIG_CHANGED',
       mode: this._trigger.mode,
       source: this._trigger.source,
-      level: this._trigger.level
+      level: this._trigger.level,
+      slope: this._trigger.slope,
+      position: this._trigger.position,
+      holdoff: this._trigger.holdoff,
+      hysteresis: this._trigger.hysteresis
     });
   }
 
   /**
    * Signal that hardware/simulation triggered
    */
-  public notifyTriggerFired(triggerIndex?: number): void {
+  public notifyTriggerFired(
+    triggerIndex?: number,
+    fractionalOffset?: number,
+    isForcedAuto?: boolean
+  ): void {
     if (this._stateMachine.state !== 'RUNNING' && this._stateMachine.state !== 'WAITING_TRIGGER') {
       return;
     }
@@ -304,7 +349,9 @@ export class Oscilloscope {
       type: 'TRIGGERED',
       source: this._trigger.source,
       level: this._trigger.level,
-      triggerIndex
+      triggerIndex,
+      fractionalOffset,
+      isForcedAuto
     });
 
     // In SINGLE mode, complete acquisition and stop.

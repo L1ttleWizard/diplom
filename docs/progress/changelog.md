@@ -1,5 +1,32 @@
 # Project Changelog
 
+## [Wave 14] - 2026-09-06
+### Added
+- Sample-Domain Trigger Engine operating directly in the discrete acquisition/sample domain at 1–5 MSPS (`src/domain/trigger/`).
+- Schmitt Trigger Comparator with configurable hysteresis band $[V_{\text{level}} - V_{\text{hyst}}, V_{\text{level}} + V_{\text{hyst}}]$ suppressing noise up to $\pm 40\,\text{mV}$ (`src/domain/trigger/TriggerDetector.ts`).
+- Rising edge (`RISING`) and falling edge (`FALLING`) detection polarities.
+- Trigger holdoff timer ($T_{\text{holdoff}}$) for re-arm suppression across multi-pulse bursts.
+- Sub-sample linear interpolation ($\delta = \frac{V_{\text{level}} - x[k-1]}{x[k] - x[k-1]} \in [0, 1)$) for sub-sample trigger point timing $t_{\text{trig}} = (k - 1 + \delta)/f_s$.
+- Capture window management partitioning $N_{\text{window}} = 10 \cdot \text{timeDiv} \cdot f_s$ into pre-trigger ($N_{\text{pre}} = \text{round}(N_{\text{window}} \cdot P_{\text{trig}})$) and post-trigger ($N_{\text{post}} = N_{\text{window}} - N_{\text{pre}}$) (`src/domain/trigger/TriggerEngine.ts`).
+- Full sweep mode state machines:
+  - `AUTO`: Trigger lock on periodic signals with 100 ms auto-timeout fallback for DC and sub-threshold signals.
+  - `NORMAL`: Strict trigger-locked updates, freezing display frame when trigger condition is lost.
+  - `SINGLE`: Single sweep acquisition transitioning oscilloscope aggregate to `STOPPED`.
+- Zero-jitter display buffer extraction (`extractDisplayBuffer`) anchoring the continuous trigger point at $P_{\text{trig}} \cdot N_{\text{points}}$, completely eliminating phase wander and discrete sample jitter.
+- Domain extensions:
+  - `Trigger.ts`: Added `position`, `hysteresis`, and `autoTimeout` properties.
+  - Commands: `SET_TRIGGER_SLOPE`, `SET_TRIGGER_SOURCE`, `SET_TRIGGER_POSITION`, `SET_TRIGGER_HOLDOFF`, `SET_TRIGGER_HYSTERESIS`, `FORCE_TRIGGER`.
+  - Events: Extended `TriggerConfigChangedEvent` and `TriggeredEvent`.
+- 22 new unit and integration tests across 2 new test suites:
+  - `tests/domain/trigger/trigger-detector.test.ts` (9 tests).
+  - `tests/domain/trigger/trigger-engine.test.ts` (13 tests, including 50-frame zero-jitter soak test).
+  - All 28 test suites and 272 tests passing repository-wide.
+- Integration into `TestBench.ts` and HUD telemetry readout (`Trigger: CH1 @ +0.00V [LOCK]`).
+- Full architectural and ADR documentation:
+  - `docs/decisions/2026-09-06-ADR-011-sample-domain-trigger-engine.md`
+  - `docs/architecture/trigger-engine.md`
+  - Updates to `docs/api.md`, `docs/architecture.md`, `docs/progress/waves.md`.
+
 ## [Wave 13] - 2026-09-06
 ### Added
 - WebAssembly DSP Kernels extended with 128-bit SIMD vectorization and specialized DSP routines (`src/wasm/dsp_kernel.wat`).

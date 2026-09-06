@@ -72,5 +72,6 @@ The system enforces a strict barrier between the **Control Plane** and the **Dat
 - **WebAssembly DSP Core ABI**: Detailed in [dsp-wasm-abi.md](./architecture/dsp-wasm-abi.md).
 - **DSP Reference Algorithms & Oracle**: Detailed in [dsp-reference-algorithms.md](./architecture/dsp-reference-algorithms.md).
 - **Control-to-Display Pipeline**: Detailed in [control-to-display-flow.md](./architecture/control-to-display-flow.md).
+- **Trigger Engine**: Detailed in [trigger-engine.md](./architecture/trigger-engine.md).
 - **Test Bench & Verification**: Detailed in [test-bench.md](./testing/test-bench.md).
 - **Runtime Topology**: Detailed in [runtime-topology.md](./architecture/runtime-topology.md).

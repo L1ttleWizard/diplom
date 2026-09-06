@@ -537,8 +537,52 @@
 
 ---
 
+# Wave 14: Virtual Trigger Engine and Hardware-Equivalent Synchronization
+
+- **Status**: DONE
+- **Goal**: Реализовать триггер в дискретной области отсчетов (Acquisition / Sample Domain) на частотах 1–5 MSPS непосредственно перед или внутри кольцевого буфера, а не на децимированном буфере дисплея. Поддержать нарастающий (`RISING`) и спадающий (`FALLING`) фронты, пороговый уровень (`level`), горизонтальное положение метки триггера (`position` $\in [0.0, 1.0]$), пре-триггер ($N_{\text{pre}}$) и пост-триггер ($N_{\text{post}}$), режимы развертки `AUTO`, `NORMAL`, `SINGLE`, гистерезисный компаратор (триггер Шмитта) для подавления шумов, время удержания (Holdoff Time) и субдискретную интерполяцию для нулевого джиттера.
+- **Implemented**:
+  1. **Доменные сущности, команды и события (`src/domain/`)**:
+     - В `Trigger.ts` добавлены свойства `position` ($0.0 \dots 1.0$), `hysteresis` (В) и `autoTimeout` (с).
+     - Добавлены команды `SET_TRIGGER_SLOPE`, `SET_TRIGGER_SOURCE`, `SET_TRIGGER_POSITION`, `SET_TRIGGER_HOLDOFF`, `SET_TRIGGER_HYSTERESIS`, `FORCE_TRIGGER` со строгой валидацией.
+     - Добавлены события `TriggerConfigChangedEvent` и расширено событие `TriggeredEvent` (`fractionalOffset`, `isForcedAuto`).
+     - В `OscilloscopeService` добавлена диспетчеризация всех триггерных команд.
+  2. **Детектор синхронизации (`src/domain/trigger/TriggerDetector.ts`)**:
+     - Компаратор с гистерезисной зоной $[V_{\text{level}} - V_{\text{hyst}}, V_{\text{level}} + V_{\text{hyst}}]$ (триггер Шмитта).
+     - Подавление дребезга и шума до $\pm 40\,\text{мВ}$ при гистерезисе $50\,\text{мВ}$.
+     - Таймер удержания (Holdoff Timer) для пачек импульсов.
+     - Субдискретная линейная интерполяция $\delta = \frac{V_{\text{level}} - x[k-1]}{x[k] - x[k-1]} \in [0, 1)$.
+     - Поточный поиск `processSample`, пакетный `findTriggerInBatch` и кольцевой обратный `findTriggerReverse`.
+  3. **Движок развертки (`src/domain/trigger/TriggerEngine.ts`)**:
+     - Управление окном захвата: $N_{\text{window}} = 10 \cdot \text{timeDiv} \cdot f_s$, $N_{\text{pre}} = \text{round}(N_{\text{window}} \cdot P_{\text{trig}})$, $N_{\text{post}} = N_{\text{window}} - N_{\text{pre}}$.
+     - Контроль накопления пре-триггера перед взводом компаратора.
+     - Ожидание поступления пост-триггера перед фиксацией кадра.
+     - Машина состояний режимов:
+       - `AUTO`: блокировка на сигнале + 100 мс авто-срыв развертки при постоянном токе/отсутствии триггера.
+       - `NORMAL`: строгое обновление только по реальным триггерам, сохранение предыдущего кадра при отсутствии условий.
+       - `SINGLE`: захват ровно одного полного кадра и автоматический перевод осциллографа в `STOPPED`.
+     - Функция `extractDisplayBuffer`, устраняющая фазовый джиттер за счет привязки точки триггера к $P_{\text{trig}} \cdot N_{\text{points}}$.
+  4. **Интеграция со сквозным стендом (`TestBench.ts`)**:
+     - Полная замена грубого цикла на `TriggerEngine`.
+     - Вывод телеметрии синхронизации на HUD: `Trigger: CH1 @ +0.00V [LOCK]`.
+  5. **Тестирование и верификация**:
+     - `tests/domain/trigger/trigger-detector.test.ts`: 9 тестов (аналитический синус, прямоугольник, гистерезис, шум, holdoff, DC).
+     - `tests/domain/trigger/trigger-engine.test.ts`: 13 тестов (пре/пост-триггерные окна, AUTO/NORMAL/SINGLE, таймауты, 50-кадровый soak-тест с 0-джиттером).
+     - `tests/application/test-bench.test.ts`: 7 тестов (100% PASS).
+     - Суммарно по проекту: **28 сьютов, 272 теста (100% PASS)**.
+     - `pnpm run typecheck`: 0 ошибок.
+     - `node scripts/check-boundaries.mjs`: 0 нарушений границ.
+     - `pnpm run build`: успешная сборка.
+  6. **Документация**:
+     - Создан [docs/decisions/2026-09-06-ADR-011-sample-domain-trigger-engine.md](../decisions/2026-09-06-ADR-011-sample-domain-trigger-engine.md).
+     - Создан [docs/architecture/trigger-engine.md](../architecture/trigger-engine.md).
+     - Обновлены [docs/api.md](../api.md) и [docs/architecture.md](../architecture.md).
+- **Acceptance Gate**: **PASS** — Стабильная синхронизация подтверждена тестами и живым рендерингом на 3D-экране, нулевой фазовый джиттер, режимы AUTO/NORMAL/SINGLE функционируют в полном соответствии со спецификацией DSO.
+
+---
+
 # Next Wave
-- **Wave 14**: Virtual Trigger Engine and Hardware-Equivalent Synchronization (Аппаратный триггерный компаратор, Edge Trigger Rising/Falling, Holdoff-таймер, гистерезис шума, синхронизация с SharedArrayBuffer и интеграция с WASM-дециматором).
+- **Wave 15**: Waveform Display Pipeline & Decimation (Min/Max Decimation, Peak Detect, Equivalent-Time Sampling, Interpolation sinc/linear).
 
 
 

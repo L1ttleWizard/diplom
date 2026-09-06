@@ -32,3 +32,6 @@ export * from './simulation/GoldenVectors';
 // Acquisition & ADC Model (Wave 7)
 export * from './acquisition';
 
+// Trigger Engine (Wave 14)
+export * from './trigger';
+

@@ -60,6 +60,30 @@ export class OscilloscopeService {
         this._oscilloscope.setTriggerMode(command.mode);
         break;
 
+      case 'SET_TRIGGER_SLOPE':
+        this._oscilloscope.setTriggerSlope(command.slope);
+        break;
+
+      case 'SET_TRIGGER_SOURCE':
+        this._oscilloscope.setTriggerSource(command.source);
+        break;
+
+      case 'SET_TRIGGER_POSITION':
+        this._oscilloscope.setTriggerPosition(command.position);
+        break;
+
+      case 'SET_TRIGGER_HOLDOFF':
+        this._oscilloscope.setTriggerHoldoff(command.holdoff);
+        break;
+
+      case 'SET_TRIGGER_HYSTERESIS':
+        this._oscilloscope.setTriggerHysteresis(command.hysteresis);
+        break;
+
+      case 'FORCE_TRIGGER':
+        this._oscilloscope.notifyTriggerFired(undefined, undefined, true);
+        break;
+
       case 'ENABLE_CHANNEL':
         this._oscilloscope.enableChannel(command.channelId);
         break;
