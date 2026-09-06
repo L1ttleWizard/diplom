@@ -1,5 +1,6 @@
 import { Oscilloscope3DRuntime } from './rendering/core/Oscilloscope3DRuntime';
 import { PerformanceTier } from './rendering/types';
+import { AcquisitionWorkerClient } from './workers';
 
 document.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('render-canvas') as HTMLCanvasElement;
@@ -98,6 +99,59 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Wave 8: Acquisition Worker Client Integration
+  const workerClient = new AcquisitionWorkerClient();
+  (window as any).__WORKER_CLIENT__ = workerClient;
+
+  const valWorkerStatus = document.getElementById('val-worker-status');
+  const valWorkerMsps = document.getElementById('val-worker-msps');
+  const valWorkerLatency = document.getElementById('val-worker-latency');
+  const btnWorkerToggle = document.getElementById('btn-worker-toggle');
+  const btnWorkerRestart = document.getElementById('btn-worker-restart');
+
+  workerClient
+    .startup({
+      sampleRate: 2_000_000,
+      batchSize: 20_000,
+      intervalMs: 20,
+      ch1: { waveform: 'SINE', frequency: 1000, amplitude: 2.0 },
+      ch2: { waveform: 'SQUARE', frequency: 5000, amplitude: 3.0 }
+    })
+    .then(() => {
+      console.log('[Main] Acquisition Worker successfully initialized.');
+      if (valWorkerStatus) valWorkerStatus.textContent = 'IDLE';
+    })
+    .catch((err) => {
+      console.error('[Main] Failed to initialize worker:', err);
+      if (valWorkerStatus) valWorkerStatus.textContent = 'ERROR';
+    });
+
+  workerClient.onStateChange((state) => {
+    if (valWorkerStatus) valWorkerStatus.textContent = state;
+    if (btnWorkerToggle) {
+      if (state === 'RUNNING') {
+        btnWorkerToggle.textContent = 'Worker: STOP';
+        btnWorkerToggle.style.background = '#da3633';
+      } else {
+        btnWorkerToggle.textContent = 'Worker: START';
+        btnWorkerToggle.style.background = '#1f6feb';
+      }
+    }
+  });
+
+  btnWorkerToggle?.addEventListener('click', () => {
+    if (workerClient.state === 'RUNNING') {
+      workerClient.stop();
+    } else {
+      workerClient.start();
+    }
+  });
+
+  btnWorkerRestart?.addEventListener('click', async () => {
+    if (valWorkerStatus) valWorkerStatus.textContent = 'RESTARTING...';
+    await workerClient.restart();
+  });
+
   // Metrics HUD updater (every 250ms)
   const valFps = document.getElementById('val-fps');
   const valFrameTime = document.getElementById('val-frame-time');
@@ -114,5 +168,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (valDrawCalls) valDrawCalls.textContent = `${metrics.drawCalls}`;
     if (valTriangles) valTriangles.textContent = `${metrics.triangles.toLocaleString()}`;
+
+    if (valWorkerMsps) {
+      const msps = workerClient.rollingThroughputMsps;
+      valWorkerMsps.textContent = msps > 0 ? `${msps.toFixed(2)} MSPS` : '--';
+    }
+    if (valWorkerLatency) {
+      const lat = workerClient.latestLatencyMs;
+      valWorkerLatency.textContent = lat > 0 ? `${lat.toFixed(2)} ms` : '--';
+    }
   }, 250);
 });
+

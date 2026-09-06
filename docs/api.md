@@ -197,3 +197,61 @@ export class SampleRingBuffer implements ISampleRingBuffer {
 }
 ```
 
+---
+
+## 6. Acquisition Worker Protocol & Client API (`src/workers/`)
+
+### 6.1 Versioned Protocol (`src/workers/acquisition/protocol.ts`)
+```typescript
+export const PROTOCOL_VERSION = 1;
+
+export type WorkerCommandType = 'INIT' | 'START' | 'STOP' | 'CONFIGURE' | 'RESET';
+export type WorkerEventType = 'INITIALIZED' | 'BATCH_PRODUCED' | 'CONFIGURED' | 'STATE_CHANGED' | 'ERROR';
+
+export interface WorkerCommandMessage<T = unknown> {
+  version: 1;
+  id: string;
+  type: WorkerCommandType;
+  timestamp: number;
+  payload: T;
+}
+
+export interface WorkerEventMessage<T = unknown> {
+  version: 1;
+  id: string;
+  type: WorkerEventType;
+  timestamp: number;
+  payload: T;
+}
+```
+
+### 6.2 `AcquisitionWorkerClient` (`src/workers/acquisition/AcquisitionWorkerClient.ts`)
+```typescript
+export class AcquisitionWorkerClient {
+  constructor(portFactory?: () => IWorkerPort);
+
+  // Lifecycle
+  public startup(config?: WorkerInitPayload, timeoutMs?: number): Promise<void>;
+  public start(intervalMs?: number): void;
+  public stop(): void;
+  public configure(update: WorkerConfigurePayload): void;
+  public reset(): void;
+  public shutdown(): void;
+  public restart(): Promise<void>; // Includes automatic state resynchronization
+
+  // Event subscriptions
+  public onBatch(callback: (batch: WorkerBatchPayload) => void): () => void;
+  public onStateChange(callback: (state: WorkerState) => void): () => void;
+  public onError(callback: (error: WorkerErrorPayload) => void): () => void;
+
+  // Telemetry metrics
+  public get state(): WorkerState;
+  public get latestLatencyMs(): number;
+  public get avgLatencyMs(): number;
+  public get rollingThroughputMsps(): number;
+  public get totalBatches(): number;
+  public get totalSamples(): number;
+}
+```
+
+

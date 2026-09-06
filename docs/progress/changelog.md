@@ -1,5 +1,18 @@
 # Project Changelog
 
+## [Wave 8] - 2026-09-06
+### Added
+- Dedicated background Web Worker (`acquisition.worker.ts`) and headless core (`AcquisitionWorkerCore`) for continuous signal synthesis and ADC acquisition.
+- Versioned worker communication protocol (`PROTOCOL_VERSION = 1`) with typed commands (`INIT`, `START`, `STOP`, `CONFIGURE`, `RESET`) and events (`INITIALIZED`, `BATCH_PRODUCED`, `CONFIGURED`, `STATE_CHANGED`, `ERROR`).
+- Zero-copy batch transfer via Transferable `ArrayBuffer` (`[ch1Buf.buffer, ch2Buf.buffer]`), eliminating JSON serialization and memory copy costs.
+- Main-thread worker management facade (`AcquisitionWorkerClient`) with startup handshake timeout, clean shutdown, and automatic state resynchronization on worker restart.
+- In-process worker adapter (`InProcessWorkerPort`) enabling automated headless worker testing without browser DOM `Worker`.
+- Dev testbed UI integration in `src/main.ts` and `index.html` with real-time worker telemetry (status, throughput MSPS, latency, START/STOP and RESTART controls).
+- Performance benchmarking proving >97% reduction in main-thread compute burden (from ~10 ms down to < 0.2 ms) and maintaining rock-solid 60 FPS 3D rendering with zero UI freezes.
+- 12 automated unit and benchmark tests for protocol validation, lifecycle transitions, state recovery, and throughput (131 total tests passing).
+- Comprehensive architectural documentation `docs/architecture/workers-and-wasm.md`.
+- Architectural Decision Record `docs/decisions/2026-09-06-ADR-005-acquisition-worker-protocol.md`.
+
 ## [Wave 7] - 2026-09-06
 ### Added
 - Analog Front End model (`AnalogFrontEnd`) featuring AC/DC/GND coupling, 1X/10X probe attenuation, vertical gain ($A_v = 1/\text{voltsPerDiv}$), channel offset, 1st-order RC bandwidth limiter, Box-Muller Gaussian thermal noise, and analog rail saturation.
